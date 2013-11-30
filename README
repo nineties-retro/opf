@@ -1,5 +1,5 @@
 INTRODUCTION
-   OPF is 32-bit subrouting threaded Forth writen in x86 assembly.
+   OPF is 32-bit subroutine threaded Forth writen in x86 assembly.
 
 HISTORY
    After implementing OKF and deciding that one KB was not a
