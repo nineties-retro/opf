@@ -1,0 +1,17 @@
+#< std.opf
+#< posix.opf
+#< signum.opf
+
+: handler ." caught signal " { sig# . cr } ;
+: before ." pausing ..." { cr } ;
+: after ." pausing over, bye " { cr } ;
+posix-sigaction# allot : action #, ;
+: +! { + ! } ;
+: handler! ' handler >body #, { action posix-sigaction-sa-handler +! } ;
+: mask! { 0 action posix-sigaction-sa-mask +! } ;
+: flags! { 0 action posix-sigaction-sa-flags +! } ;
+: install { 0 action posix-sigint posix-sigaction }
+            abort" could not install SIGINT handler" ;
+: main { handler! mask! flags! install before posix-pause after } ;
+main
+

@@ -1,0 +1,17 @@
+: argc { 0 #% @ } ;
+: argv { 1 #% @ } ;
+: cr { 0a emit } ;
+: space { 20 emit } ;
+: here { 3 #% @ } ;
+: decimal { 0a 2 #% ! } ;
+: hex { 10 2 #% ! } ;
+: octal { 8 2 #% ! } ;
+: binary { 2 2 #% ! } ;
+: cfa { 5 + } ;
+: >body { cfa @ } ;
+: allot { 3 #% swap over @ dup push + swap ! pop } ;
+: ", { swap #, #, } ;
+: ." { " ", } ' type #, { compile, } ;
+: ', { ' #, } ' compile, #, { compile, } ;
+: (abort") { type cr abort } ;
+: abort" { if " ", } ', (abort") { then } ', drop ;

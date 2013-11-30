@@ -1,0 +1,41 @@
+A simple version of cat(1).
+
+This version only works on files, it does not accept standard input.
+(The only reason for this is that opf doesn't have comparisons yet).
+
+read ( fd[n] -- n )
+   Reads <code>buffer#</code> bytes into <code>buffer</code> returning
+   the number read.
+
+
+write ( nbytes[n] -- n )
+   Writes <code>nbytes</code> from <code>buffer</code> to the standard output
+   returning the number of bytes written.
+
+
+close ( fd[n] -- )
+  Close the file descriptor and ignore the result.
+
+
+cat-fd ( fd[n] -- )
+   Reads from fd in <code>buffer#</code> chunks and writes the chunks to
+   the standard output.
+
+
+open ( file-name[c-addr] -- fd[n] )
+   Opens the NUL terminated <code>file-name</code> and returns the
+   file descriptor <code>fd</code>.  If <code>fd</code> is less than
+   or equal to 0 then the file could not be opened.
+
+
+error ( file-name[c-addr] -- )
+   Output an error message containing the script and file-name.
+
+
+cat-file ( file-name[c-addr] -- )
+   Writes the contents of <code>file-name</code> to the standard output
+   or reports an error if it cannot be opened.
+
+
+do-all ( a-addr u -- )
+   Applies <code>cat-file</code> to all the command line arguments.

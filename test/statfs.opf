@@ -1,0 +1,17 @@
+#< std.opf
+#< linux.opf
+
+linux-statfs# allot : buf #, ;
+: statit { buf swap linux-statfs } abort" statfs failed" ;
+
+: display-int { buf + @ dup decimal . space hex . cr } ;
+: display ." type    " { linux-statfs-f-type display-int }
+          ." bsize   " { linux-statfs-f-bsize display-int }
+          ." blocks  " { linux-statfs-f-blocks display-int }
+          ." bfree   " { linux-statfs-f-bfree display-int }
+          ." bavail  " { linux-statfs-f-bavail display-int } 
+          ." files   " { linux-statfs-f-files display-int } 
+          ." ffree   " { linux-statfs-f-ffree display-int } 
+          ." namelen " { linux-statfs-f-namelen display-int } ;
+: main { argv 4 + @ statit display } ;
+main

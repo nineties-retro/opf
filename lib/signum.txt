@@ -1,0 +1,14 @@
+sig# ( -- n )
+   what:
+      When called from inside a signal handler, it retrieves the number of
+      the signal which is being handled.
+   how:
+      Plucks the value off the saved context information on %esp using :-
+
+          movl    %eax, -opf_cell_size(%ebp)
+          movl    $(2*opf_cell_size)(%esp), %eax
+          subl    $opf_cell_size, %ebp
+          ret
+
+      See opf/bib#linux.sig.return for more information on the stack
+      layout.

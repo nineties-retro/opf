@@ -1,0 +1,12 @@
+: linux-statfs { 63 2 #* } ;
+#! /usr/include/asm/statfs.h
+: linux-statfs-f-type     00 #, ;
+: linux-statfs-f-bsize    04 #, ;
+: linux-statfs-f-blocks   08 #, ;
+: linux-statfs-f-bfree    0C #, ;
+: linux-statfs-f-bavail   10 #, ;
+: linux-statfs-f-files    14 #, ;
+: linux-statfs-f-ffree    18 #, ;
+: linux-statfs-f-fsid     1C #, ;
+: linux-statfs-f-namelen  24 #, ;
+: linux-statfs#           40 #, ;

@@ -1,0 +1,2 @@
+C   long statfs(const char * path, struct statfs * buf)
+OPF bsd-statfs ( buf path -- n )

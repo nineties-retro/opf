@@ -1,0 +1,129 @@
+
+
+#! /usr/include/sys/syscall.h
+: posix-alarm     { 1B 1 #* } ;
+: posix-chdir     { 0C 1 #* } ;
+: posix-chmod     { 0F 2 #* } ;
+: posix-chown     { 10 2 #* } ;
+: posix-close     { 06 1 #* } ;
+: posix-creat     { 08 1 #* } ;
+: posix-exit      { 01 1 #* } ;
+: posix-fork      { 02 0 #* } ;
+: posix-kill      { 25 2 #* } ;
+: posix-link      { 09 2 #* } ;
+: posix-mkdir     { 27 2 #* } ;
+: posix-nanosleep { A2 2 #* } ;
+: posix-open      { 05 3 #* } ;
+: posix-pause     { 1D 0 #* drop } ;
+: posix-mmap      { 5A 6 #* } ;
+: posix-mprotect  { 7D 3 #* } ;
+: posix-munmap    { 5B 2 #* } ;
+: posix-read      { 03 3 #* } ;
+: posix-rmdir     { 28 1 #* } ;
+: posix-sigaction { 43 3 #* } ;
+: posix-time      { 0D 1 #* } ;
+: posix-unlink    { 0A 1 #* } ;
+: posix-write     { 04 3 #* } ;
+
+#! /usr/include/asm/fcntl.h
+: posix-o-rdonly   000 #, ;
+: posix-o-wronly   001 #, ;
+: posix-o-rdwr     002 #, ;
+: posix-o-creat    040 #, ;
+: posix-o-excl     080 #, ;
+: posix-o-noctty   100 #, ;
+: posix-o-trunc    200 #, ;
+: posix-o-append   400 #, ;
+: posix-o-nonblock 800 #, ;
+
+#! /usr/include/asm/mman.h
+: posix-prot-read     01 #, ;
+: posix-prot-write    02 #, ;
+: posix-prot-exec     04 #, ;
+: posix-prot-none     00 #, ;
+: posix-map-shared    01 #, ;
+: posix-map-private   02 #, ;
+: posix-map-fixed     10 #, ;
+: posix-map-anonymous 20 #, ;
+
+#! /usr/include/asm/signal.h
+: posix-nsig      20 #, ;
+: posix-sighup    01 #, ;
+: posix-sigint    02 #, ;
+: posix-sigquit   03 #, ;
+: posix-sigill    04 #, ;
+: posix-sigtrap   05 #, ;
+: posix-sigabrt   06 #, ;
+: posix-sigiot    posix-sigabrt ;
+: posix-sigbus    07 #, ;
+: posix-sigfpe    08 #, ;
+: posix-sigkill   09 #, ;
+: posix-sigusr1   0A #, ;
+: posix-sigsegv   0B #, ;
+: posix-sigusr2   0C #, ;
+: posix-sigpipe   0D #, ;
+: posix-sigalrm   0E #, ;
+: posix-sigterm   0F #, ;
+: posix-sigstkflt 10 #, ;
+: posix-sigchld   11 #, ;
+: posix-sigcont   12 #, ;
+: posix-sigstop   13 #, ;
+: posix-sigtstp   14 #, ;
+: posix-sigttin   15 #, ;
+: posix-sigttou   16 #, ;
+: posix-sigurg    17 #, ;
+: posix-sigxcpu   18 #, ;
+: posix-sigxfsz   19 #, ;
+: posix-sigvtalrm 1A #, ;
+: posix-sigprof   1B #, ;
+: posix-sigwinch  1C #, ;
+: posix-sigio     1D #, ;
+: posix-sigpoll   posix-sigio ;
+: posix-sigpwr    1E #, ;
+: posix-sigunused 1F #, ;
+: posix-sa-stack     08000000 #, ;
+: posix-sa-restart   10000000 #, ;
+: posix-sa-interrupt 20000000 #, ;
+: posix-sa-nomask    40000000 #, ;
+: posix-sa-oneshot   80000000 #, ;
+: posix-sigaction-sa-handler   0 #, ;
+: posix-sigaction-sa-mask      4 #, ;
+: posix-sigaction-sa-flags     8 #, ;
+: posix-sigaction-sa-restorer  c #, ;
+: posix-sigaction#             f #, ;
+
+#! /usr/include/linux/time.h
+: posix-timespec-tv-sec  0 #, ;
+: posix-timespec-tv-nsec 4 #, ;
+: posix-timespec#        8 #, ;
+: posix-timeval-tv-sec  0 #, ;
+: posix-timeval-tv-usec 4 #, ;
+: posix-timeval#        8 #, ;
+: posix-timezone-tz-minueswest 0 #, ;
+: posix-timezone-tz-dsttime    4 #, ;
+: posix-timezone#              8 #, ;
+
+#! /usr/include/linux/stat.h
+: posix-s-ifmt   F000 #, ;
+: posix-s-ifsock C000 #, ;
+: posix-s-iflnk  A000 #, ;
+: posix-s-ifreg  8000 #, ;
+: posix-s-ifblk  6000 #, ;
+: posix-s-ifdir  4000 #, ;
+: posix-s-ifchr  2000 #, ;
+: posix-s-ififo  1000 #, ;
+: posix-s-isuid  800 #, ;
+: posix-s-isgid  400 #, ;
+: posix-s-isvtx  200 #, ;
+: posix-s-irusr  100 #, ;
+: posix-s-iread  posix-s-irusr ;
+: posix-s-iwusr  080 #, ;
+: posix-s-iwrite posix-s-iwusr ;
+: posix-s-ixusr  040 #, ;
+: posix-s-ixexec posix-s-ixusr ;
+: posix-s-irgrp  020 #, ;
+: posix-s-iwgrp  010 #, ;
+: posix-s-ixgrp  008 #, ;
+: posix-s-iroth  004 #, ;
+: posix-s-iwoth  002 #, ;
+: posix-s-ixoth  001 #, ;

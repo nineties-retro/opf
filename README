@@ -1,0 +1,120 @@
+INTRODUCTION
+   OPF is 32-bit subrouting threaded Forth writen in x86 assembly.
+
+HISTORY
+   After implementing OKF and deciding that one KB was not a
+   worthwhile goal for a Unix Forth I decided that one page (aka 4KB
+   on an x86) was a better fit.  So, between 1999-06-01 and 1999-06-24
+   I spent 32 hours 12 minutes creating OPF.
+
+   Moving the core back into assembly made it easier to implement TOS
+   caching and an automatic (but simple) inliner, both of which
+   significantly speed up toy benchmarks.
+
+   I decided to experiment with keeping all the documentation separate
+   from the code, much as shadow blocks are used in a block based
+   Forth.  This is the opposite direction to Knuth's literate
+   programming and I was curious whether it would be observably better
+   or worse.
+
+   As with its predecesor OKF, I never planned to release OPF but now
+   14 years later it can't do any damage that has not already been
+   done by other Forth implementations.
+
+NOT ANS FORTH
+   Although opf is based on Forth, it does not follow the American
+   National Standard or any standard for that matter.
+
+   There is no state variable in OPF so you cannot manipulate it to
+   alter the state.  Whether words are interpreted or compiled is
+   controlled by a couple of vectored words -- changing state involves
+   changing the values of the vectors.  This approach has been chosen
+   because it is more extensible than a state based approach (though
+   it is probably marginally less efficient given that it probably
+   hurts the icache more).
+
+   In ANS Forth, a ':' creates a new word and changes the state from
+   interpretation to compilation.  In OPF it only creates a new word,
+   it does not change the state.  Similarly in ANS Forth ';' marks the
+   end of a word and changes the state from compilation to
+   interpretation (to do this ';' must be an immediate word).  In OPF
+   a ';' does not mark the end of a word nor does it change the state,
+   it just marks a point where a return to the caller word will be
+   done.  There is no specific word for marking the end of a word.
+   Also all state changing is explicit in OPF and is done via '{' and
+   '}'.  The former enters compilation state and the latter exits it.
+
+   In ANS Forth some words have to be immediate
+   so that they can perform their function when they are referenced while
+   in compilation mode.  For example, when IF and THEN
+   are met in compilation mode they are not compiled, they are executed and
+   they do whatever is necessary to plant the correct code for a conditional.
+   In OPF only one word is the equivalent of IMMEDIATE
+   and that is '}'.  All other words will compile as normal if
+   they are referenced while in compilation mode.  If you don't want a word
+   to be compiled, then switch back to interpretation mode.  For example, the
+   following ANS Forth :-
+
+      : foo dup if type cr then ." ok " ;
+
+   would be written as :-
+
+      : foo { dup } if { type cr } then ." ok " ;
+
+   in OPF.
+
+   There is no concept of smudging words in order to hide or reveal
+   the word currently being defined, when you define a word it is
+   visible in its own body.  This means it is possible to write (tail)
+   recursive words but at the cost of not being able to rebind words
+   using the same name as is possible in ANS Forth.  Since I rarely if
+   ever did the latter that is no loss to me and the benefit of
+   recursive words makes it possible to take a different strategy for
+   loops ...
+
+   There are no loop control structures in OPF, all looping is
+   achieved by writing (tail) recursive words.  This is a natural
+   style for me given that I've written a lot of code in functional
+   languages but I suspected it was too great a departure from Forth
+   until I read that Charles Moore had taken the same approach in
+   Color/Machine Forth.
+
+
+BUILD
+   There is no autoconf just type :-
+
+      $ make
+
+   and that will either generate ./opf which fits comfortably within 4KB :-
+
+      $ size ./opf
+         text	   data	    bss	    dec	    hex	filename
+         3039	      0	      0	   3039	    bdf	opf
+      $ 
+
+RUN
+   The manual page (opf.1, formatted as opf.doc) covers the command line options,
+   but here are a couple of simple examples.  The first just uses OPF as a RPN
+   calculator :-
+
+      $ echo "2 2 + ." | ./opf
+      4$ 
+
+   The second shows OPF running a script that returns information
+   about the specified file-system as made available via statfs(2) :-
+
+      $ ./opf -llib -ltest statfs.opf /
+      type    61267 EF53
+      bsize   4096 1000
+      blocks  6167013 5E19E5
+      bfree   377203 5C173
+      bavail  63936 F9C0
+      files   3133440 2FD000
+      ffree   2532829 26A5DD
+      namelen 255 FF
+      $ 
+
+AUTHOR
+   Ninetes Retro <nineties-retro@mail.com>
+
+   721e86c2b9d6b506bc53bcd00d1219da9fa46bceb1e9f9df15a2cf393f8d378f

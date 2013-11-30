@@ -1,0 +1,9 @@
+Test out posix-mmap (with the help of posix-open).
+Does so by opening /dev/zero and mmapping 4K of it as private
+and readable/writable.  Initialises each byte with 0x0A and then
+checks that each byte does contain 0x0A.
+
+Run it by doing :-
+
+  $ ../opf -l../lib -l. mmap.opf
+  phew, made it

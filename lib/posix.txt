@@ -1,0 +1,100 @@
+C   long alarm(long seconds)
+OPF posix-alarm ( seconds -- n )
+
+
+C   int chdir(const char * path)
+OPF posix-chdir ( path -- n )
+
+
+C   int chmod(const char * path, mode_t mode)
+OPF posix-chmod ( mode path -- n )
+
+
+C   int chown(const char * path, uid_t owner, gid_t group)
+OPF posix-chown ( group owner path -- n )
+
+
+C   int close(int fd)
+OPF posix-close ( fd -- n )
+
+C   int creat(const char * path, mode_t mode)
+OPF posix-creat ( mode path -- n )
+
+
+C   int _exit(int status)
+OPF posix-exit ( status -- n )
+
+
+C   int fork(void)
+OPF posix-fork ( -- n )
+
+
+C   int kill(pid_t pid, int sig)
+OPF posix-kill ( sig pid -- n )
+
+
+C   int link(const char * oldpath, const char * newpath)
+OPF posix-link ( newpath oldpath -- n )
+
+
+C   int mkdir(const char * path, mode_t mode)
+OPF posix-mkdir ( mode path -- n )
+
+
+C   int mmap(void * start, size_t length, int prot, int flags, int fd, off_t offset)
+OPF posix-mmap ( offset fd flags prot length start -- n )
+
+
+C   int mprotect(caddr_t addr, size_t * length, int prot)
+OPF posix-mprotect ( prot length addr -- n )
+
+
+C   int munmap(void * start, size_t length)
+OPF posix-munmap ( length start -- n )
+
+
+C   int nanosleep(const struct timespec * req, struct timespec * rem)
+OPF posix-nanosleep ( rem req -- n )
+
+
+C   int open(const char * path, int flags, mode_t mode)
+OPF posix-open ( mode flags path -- n )
+
+
+C   int pause(void)
+OPF posix-pause ( -- n )
+
+ <code>posix-pause</code> makes the calling process go to sleep until
+ a signal is received.  <code>n</code> is always a negative value.
+
+
+C   int read(int fd, void * buff, size_t count)
+OPF posix-read ( count buff fd -- n )
+
+
+C   int rmdir(const char * path)
+OPF posix-mkdir ( path -- n )
+
+
+C   int sigaction(int signum, const struct sigaction *act, 
+                  const struct sigaction *oldact)
+
+OPF posix-sigaction ( a-addr1 a-addr2 u -- n )
+
+   Replace the action to be taken when the signal <code>u</code> occurs
+   with <code>a-addr2</code>.  If <code>a-addr1</code> is not 0,
+   the previous action is saved in it.
+   Returns 0 on success and a non-zero value on failure.
+
+
+C   time_t time(time_t * t )
+OPF posix-time ( t -- n )
+
+
+C   int unlink(const char * path)
+OPF posix-unlink ( path -- n )
+
+
+C   int write(int fd, void * buff, size_t count)
+OPF posix-write ( count buff fd -- n )
+

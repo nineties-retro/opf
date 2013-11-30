@@ -1,0 +1,87 @@
+",
+   Equivalent of SLITERAL in ANS FORTH.
+   execution: ( c-addr1 u -- )
+      Append the run-time semantics given below to the current definition.
+   run-time: ( -- c-addr2 u )
+      Return <code>c-addr2</code> <code>u</code> describing a string consisting
+      the characters specified by <code>c-addr1</code> <code>u</code>
+      during compilation.  A program shall not alter the returned string.
+
+
+."
+   execution: ( "ccc<quote>" -- )
+      Parse <code>ccc</code> delimited by " (double-quote).  Append the
+      run-time semantics given below to the current definition.
+   run-time: ( -- )
+      Display <code>ccc</code>.
+
+
+',
+   execution: ( "<spaces>name" -- )
+      Skip leading whitespace delimiters.  Parse <code>name</code> delimited
+      whitespace.  Lookup the word in the dictionary and if it is in the
+      dictionary, then append the run-time semantics given below to the current
+      definition.
+   run-time: ( -- )
+      Appends the execution semantics of definition found at execution time
+      to the execution semantics of the current definition.
+
+   Performs the same function as a combination of <code>[']<code> and
+   <code>COMPILE,</code> in ANS FORTH.
+
+
+abort"
+   execution: ( "ccc<quote>" -- )
+      Parse <code>ccc</code> delimited by a <code>"</code> (double-quote).
+      Append the run-time semantics given below to the current definition.
+   run-time: ( i*x x1 -- i*x ) ( R: j*x -- j*x )
+      Remove <code>x1</code> from the stack.  If any bit of <code>x1</code>
+      is not zero, display <code>ccc</code> and then vector execution via
+      XXXX
+
+
+allot ( n -- c-addr )
+   Adjusts the pointer to the next free byte in the code space by n bytes
+   and returns the address it was at before it was adjusted.  The reason
+   for returning the original value is that the most common use of
+   <code>allot</code> is to allocate an <code>n</code> byte vector using
+   the following idiom :-
+
+      <n> allot : foo #, ;
+
+   This is not much shorter than explicitly mentioning <code>here</code> :-
+
+      here <n> allot : foo #, ;
+
+   but it seems to make sense to make <code>allot</code> have this behaviour
+   since it is by far the most common in OPF.
+
+argc ( -- n )
+   Returns the number of arguments on the command line.  Equivalent to
+   <code>argc</code> in C.
+
+argv ( -- a-addr )
+   Returns the address of a vector of addresses, each one of which points
+   to a NUL terminated string which represents a command line option.  There
+   are <code>argc</code> elements in the vector.
+
+binary ( -- )
+   Sets the current base to binary (base 2).
+
+cr ( -- )
+   Output a newline on the standard output.
+
+decimal ( -- )
+   Sets the current base to decimal (base 10).
+
+here ( -- c-addr )
+   Returns the address of the next available byte in the code section.
+
+hex ( -- )
+   Sets the current base to hex (base 16).
+
+octal ( -- )
+   Sets the current base to octal (base 8).
+
+space ( -- )
+   Output a space on the standard output.

@@ -1,0 +1,28 @@
+Test out linux-statfs
+
+Just takes the first argument on the command line, passes it to statfs
+and prints out most of the various fields in a statfs struct.
+
+   $ ../opf -l../lib -l. statfs.opf /
+   type    61267 EF53
+   bsize   1024 400
+   blocks  198275 30683
+   bfree   56441 DC79
+   bavail  46196 B474
+   files   51400 C8C8
+   ffree   37655 9317
+   namelen 255 FF
+
+   $ ../opf -l../lib -l. statfs.opf /proc
+   type    40864 9FA0
+   bsize   1024 400
+   blocks  0 0
+   bfree   0 0
+   bavail  0 0
+   files   0 0
+   ffree   0 0
+   namelen 255 FF
+
+   $ ../opf -l../lib -l. statfs.opf /no-such-file
+   statfs failed
+   $ 

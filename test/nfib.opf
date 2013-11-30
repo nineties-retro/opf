@@ -1,0 +1,6 @@
+#< std.opf
+decimal
+: nfib { dup 1 > } !if { dup 1 - nfib swap 2 - nfib + 1 + } ; then { drop 1 } ;
+: wrapper { dup . space nfib . cr } ;
+
+36 wrapper

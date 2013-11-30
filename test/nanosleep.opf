@@ -1,0 +1,32 @@
+#< std.opf
+#< posix.opf
+#< signum.opf
+
+: handler ;
+posix-sigaction# allot : action #, ;
+: before ." pausing ..." { cr } ;
+: after ." pausing over, bye " { cr } ;
+: +! { + ! } ;
+: handler! ' handler >body #, { action posix-sigaction-sa-handler +! } ;
+: mask! { 0 action posix-sigaction-sa-mask +! } ;
+: flags! { 0 action posix-sigaction-sa-flags +! } ;
+: action! { handler! mask! flags! } ;
+: install { 0 action posix-sigint posix-sigaction }
+            abort" could not install SIGINT handler" ;
+posix-timespec# allot : delay #, ;
+posix-timespec# allot : time-left #, ;
+: tv-sec! { posix-timespec-tv-sec +! } ;
+: tv-nsec! { posix-timespec-tv-nsec +! } ;
+: display-sec { posix-timespec-tv-sec + @ . } ." s " ;
+: display-nsec { posix-timespec-tv-nsec + @ . } ." ns " ;
+: display-time { dup display-sec display-nsec } ;
+: sleep { time-left delay posix-nanosleep } ;
+: interrupted ." interupted sleep, with " { time-left display-time }
+             ." left" { cr } ;
+: uninterrupted ." no interrupt, sleep over" { cr } ;
+: report if { drop interrupted } ; then { drop uninterrupted } ;
+: banner ." you have 5 seconds to interrupt ... " { cr } ;
+: delay! { 5 delay tv-sec!  0 delay tv-nsec! } ;
+: main { delay! action! install banner sleep report } ;
+decimal
+main

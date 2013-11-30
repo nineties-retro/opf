@@ -1,0 +1,14 @@
+#! /usr/include/linux/time.h
+: bsd-gettimeofday { 4E 2 #* } ;
+#! /usr/include/sys/time.h
+: bsd-dst-none    00 #, ;
+: bsd-dst-usa     01 #, ;
+: bsd-dst-aust    02 #, ;
+: bsd-dst-wet     03 #, ;
+: bsd-dst-met     04 #, ;
+: bsd-dst-eet     05 #, ;
+: bsd-dst-can     06 #, ;
+: bsd-dst-gb      07 #, ;
+: bsd-dst-rum     08 #, ;
+: bsd-dst-tur     09 #, ;
+: bsd-dst-austalt 0A #, ;

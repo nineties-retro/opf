@@ -1,0 +1,173 @@
+.\" a preliminary OPF manual page
+.TH OPF 1 "June 16, 1999"
+.UC 4
+.SH NAME
+opf \- One Page Forth
+.SH SYNOPSIS
+.B opf
+[
+.B \-bbase
+] [
+.B \-sbytes
+] [
+.B \-hbytes
+] [
+.B \-cbytes
+] [
+.B \-lpath
+] [
+.B \--
+] [
+.B file
+]
+.br
+.SH DESCRIPTION
+.B opf
+is an implementation of Forth that fits in one page of memory.  It
+does not comply with any known Forth standard.  It follows the usual
+Forth two stack model, but it differs in the way the text/outer
+interpreter works.  Instead of having
+.BR :
+implicitly enter compilation mode, in
+.B opf
+it leaves the compilation mode unaltered.  To enter compilation mode
+an explict change of state must be signalled using
+.B { .
+Similarly 
+.BR ;
+does not implicitly return from compilation mode to interpretation mode.
+Instead it just marks a point where the currently defined word will
+return to the calling word.  Returning to interpretation mode requires
+explicitly using
+.B } .
+Separating the mode change from means that it is possible to reduce
+the number of words that behave differently in compilation mode to
+one, namely  
+.B } .
+All other words have the same behaviour regardless of the current mode.
+A consequence of this is that certain words which in Forth involve the
+execution of code even when in compilation mode, such as
+.B if
+and
+.B then
+do not have that behaviour in
+.B opf
+instead they would be compiled just like any other word.  For example,
+a traditional Forth conditional of the form :-
+
+.nf
+: foo dup 0 < if bar swap type then ;
+.fi
+
+would be written as :-
+
+.nf
+: foo { dup 0 < } !if { bar swap type } then ;
+.fi
+
+Notice that
+.B !if
+is used rather than
+.B if
+because in 
+.B opf
+.B if
+does not consume the top element on the parameter stack.
+
+.SH OPTIONS
+
+.TP 1i
+.B \-bbase
+Sets the base used for any subsequent input or output to
+.BR base .
+Note setting this affects the base in which all subsequent command
+line arguments are evaluated.  The default base is 16.
+.TP
+.B \-cbytes
+Allocates 
+.BR bytes
+of space for the area that will hold generated code.  The size will be
+rounded up to the nearest page (4096 bytes on x86).
+.TP
+.B \-hbytes
+Allocates 
+.BR bytes
+of space for the area that will hold the headers for new words.  The
+size will be rounded up to the nearest page (4096 bytes on x86).
+.TP
+.B \-sbytes
+Allocates 
+.BR bytes
+of space for the area that will hold the parameter stack.  The
+size will be rounded up to the nearest page (4096 bytes on x86).
+.TP
+.B \-lpath
+Adds
+.BR path
+to the list of directories to search for any file name that is opened
+by
+.B $< .
+Multiple
+.B \-l
+options can be given.  The directories are searched in the order that
+they are given on the command line.
+.TP
+.B \--
+Marks the end of argument processing.  If there are no more arguments,
+input will be taken from the standard input.  The first argument after
+.B \--
+will be interpreted as a file name and it will be processed as OPF,
+as per the
+.B file
+option.
+.TP
+.B file
+Assumes
+.B file
+contains OPF code and evaluates it.  Note that unless
+.B file
+is an absolute file name it will be searched for along the search
+path set up by the
+.B \-l
+options.
+.B file
+is made the first argument in
+.B opf_argv
+and any arguments after
+.B file
+are not evaluated, instead they form rest of 
+.B opf_argv
+and
+.B opf_argc
+is set to the number of unevaluated arguments plus the file.
+
+.SH DEFINITIONS
+
+.TP
+.B whitespace
+a space or a newline.  I dislike tabs so they have not been included.
+
+
+.SH DIAGNOSTICS
+
+The exit status is non-zero if there are any fatal errors.
+
+.SH EXAMPLES
+
+The following example shows
+.B opf
+executing a script called
+.B calc.opf
+with the base set to 10.
+
+.nf
+example$ ./opf -ba calc.opf
+.fi
+
+.SH AUTHOR
+
+Nineties Retro <nineties-retro@mail.com>
+
+.SH COPYRIGHT
+
+Copyright (C) 1999-2013 Nineties Retro

@@ -1,0 +1,3 @@
+C   long gettimeofday(struct timeval * tv, struct timezone * tz)
+OPF bsd-gettimeofday ( timezone timeval -- n )
+

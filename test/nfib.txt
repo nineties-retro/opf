@@ -1,0 +1,54 @@
+A simple nfib micro-benchmark.
+
+Although the test looks like it is calculating the Fibonacci number,
+it doesn't.  The actual number it calculates is the number of calls
+that are made in calculating the answer.
+
+To use the test, try different input values until you find one that
+takes approximately 30 seconds to run.  The idea being that if the
+test is running for 30 seconds, it is calculating the nfib time and
+not getting caught up in second order effects such as the time taken
+to parse/compile/startup the test.
+
+Once you have a number, divide the answer by the time taken to get
+the nfib/sec rating.  For example, here is a table showing the
+values for nfib in various languages/implementations :-
+
+                       486 DX2/66                  Relative to C
+
+      C            1732985                             1.00
+   opf/ix86        1252546 (29860703/23.84)            0.72
+   rpl              811873 (29860703/36.78)            0.46
+   okf              389807 (11405773/29.26)            0.22
+   opf/C             76732 ( 2692537/35.09)            0.04
+
+The reason for the performance differences are :-
+
+   opf/ix86 is subroutine threaded, caches TOS in a register (%eax), 
+   supports inlining of primitives and a simple peephole optimiser for
+   selected words (in particular it improves the code around [!]if).
+
+   rpl is subroutine threaded, does not cache TOS but it does do extensive
+   inlining (more than opf does) which means that everything except the calls
+   to nfib are inlined. 
+
+   okf is subroutine threaded, does not cache TOS and does not do inlining.
+
+   opf/C is indirect threaded and threads over function addresses.
+
+
+Example Usage:
+
+   $ ../opf -c4000 -h4000 -llib -l. nfib.opf
+   34 18454929
+
+
+NB. Need to extend the script so that the argument can be read from
+the command line.  The following taken from OKF should be useful :-
+
+: script-name { argv @ dup "# } ;
+: arg1 { argv cell+ @ dup "# } ;
+: nfib-wrapper { arg1 ATOU 0 = } !if { dup . space nfib . cr } then ;
+: wrong-args { script-name type space } ." wrong args bozo!" { cr } ;
+: main { argc 2 = } if { drop nfib-wrapper } ; then { drop } ;
+main

@@ -1,0 +1,18 @@
+Test out posix-nanosleep (with a little help from posix-sigaction)
+
+The test involves setting up a signal handler for SIGINT and then
+using posix-nanosleep to generate 5 second delay.  This gives you
+5 seconds to interrupt the process otherwise it will exit normally.
+
+Run it by doing :-
+
+    $ ../opf -l../lib -l. nanosleep.opf
+    you have 5 seconds to interrupt ...
+    no interrupt, sleep period over
+
+In this case, no interrupt was sent within 5 seconds.
+
+    $ ../opf -l../lib -l. nanosleep.opf
+    you have 5 seconds to interrupt ...
+    interrupted sleep, with 4s 260000000us left
+    $ 

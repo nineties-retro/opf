@@ -1,0 +1,19 @@
+Test out posix-pause.
+
+Does so by just calling it after setting up a handler for SIGINT.
+If you run this inside Shell Mode in GNU Emacs then an easy way to
+send SIGINT is just to type C-c C-c.
+
+Run it by doing :-
+
+   $ ../opf -l../lib -l. pause.opf  
+
+and if all is well you should see :-
+
+   pausing ...
+
+If you now send a SIGINT (C-c C-c from inside Emacs) then you should
+see :-
+
+   caught signal 2
+   pausing over, bye 

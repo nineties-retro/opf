@@ -1,0 +1,18 @@
+#< std.opf
+#< posix.opf
+: cell+ { 4 + } ;
+: 2drop { drop drop } ;
+: script-name { argv @ dup "# } ;
+: buffer# 800 #, ;
+buffer# allot : buffer #, ;
+: read { push buffer# buffer pop posix-read } ;
+: write { buffer 1 posix-write drop } ;
+: close { posix-close drop } ;
+: cat-fd { dup read } if { write cat-fd } ; then { 2drop } ;
+: open { push 0 posix-o-rdonly pop posix-open } ;
+: error { script-name type space } ." could not open " { dup "# type cr } ;
+: cat-file { dup open } if { nip dup cat-fd close } ; then { drop error } ;
+: do-all if { 1 - swap dup @ cat-file cell+ swap do-all } ; then { 2drop } ;
+: skip-name { argv cell+ argc 1 - } ;
+: main { skip-name do-all } ;
+main
