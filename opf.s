@@ -1183,7 +1183,7 @@ opf_anon_mmap:
 	mov	$opf_syscall_mmap, %eax
 	mov	%esp, %ebx
 	int	$opf_syscall
-	add	$(6*4), %esp
+	add	$(6*opf_cell_size), %esp
 	cmp	$0xfffff000, %eax
 	ja	opf_abort
 	mov	%eax, (%ecx)
