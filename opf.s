@@ -127,46 +127,46 @@ opf_word_fail_msg:		.ascii " ?\n"
 
 	.global _start
 _start: 
-	popl	%eax
-	movl	%eax, opf_argc
-	movl	%esp, opf_argv
-	movl	%esp, %ebx
-	pushl	$0
-	movl	%esp, opf_L
+	pop	%eax
+	mov	%eax, opf_argc
+	mov	%esp, opf_argv
+	mov	%esp, %ebx
+	push	$0
+	mov	%esp, opf_L
 opf_cmd_line_next:
-	addl	$opf_cell_size, %ebx
-	decl	%eax
+	add	$opf_cell_size, %ebx
+	dec	%eax
 	jz	opf_cmd_line_input_from_stdin
-	movl	(%ebx), %esi
+	mov	(%ebx), %esi
 	cmpb	$'-', (%esi)
 	jne	opf_cmd_line_input_from_file
-	movl	$2, %ecx
+	mov	$2, %ecx
 opf_cmd_line_base:
 	cmpb	$'b', opf_char_size(%esi)
 	jne	opf_cmd_line_code_size
-	leal	opf_B, %edx
+	lea	opf_B, %edx
 	jmp	opf_cmd_line_parse_int
 opf_cmd_line_code_size:
 	cmpb	$'c', opf_char_size(%esi)
 	jne	opf_cmd_line_header_size
-	leal	opf_C_size, %edx
+	lea	opf_C_size, %edx
 	jmp	opf_cmd_line_parse_int
 opf_cmd_line_header_size:
 	cmpb	$'h', opf_char_size(%esi)
 	jne	opf_cmd_line_param_size
-	leal	opf_H_size, %edx
+	lea	opf_H_size, %edx
 	jmp	opf_cmd_line_parse_int
 opf_cmd_line_param_size:
 	cmpb	$'s', opf_char_size(%esi)
 	jne	opf_cmd_line_lib
-	leal	opf_S_size, %edx
+	lea	opf_S_size, %edx
 	jmp	opf_cmd_line_parse_int
 opf_cmd_line_lib:
 	cmpb	$'l', opf_char_size(%esi)
 	jne	opf_cmd_line_end
-	addl	$(2*opf_char_size), %esi
-	movl	%esi, (%esp)
-	pushl	$0
+	add	$(2*opf_char_size), %esi
+	mov	%esi, (%esp)
+	push	$0
 	jmp	opf_cmd_line_next
 opf_cmd_line_end:
 	cmpw	$0x002D, opf_char_size(%esi)
@@ -175,64 +175,64 @@ opf_cmd_line_end:
 
 opf_cmd_line_input_from_stdin:
 	call	opf_cmd_line_setup_args
-	movl	$opf_stdin, %eax
+	mov	$opf_stdin, %eax
 	call	opf_input_from_fd_code
 	jmp	opf_exit
 
 
 opf_cmd_line_input_from_file:
-	movl	opf_argv, %ecx
-	movl	%ebx, opf_argv
-	subl	%ecx, %ebx
-	shrl	$2, %ebx
-	subl	%ebx, opf_argc
+	mov	opf_argv, %ecx
+	mov	%ebx, opf_argv
+	sub	%ecx, %ebx
+	shr	$2, %ebx
+	sub	%ebx, opf_argc
 	call	opf_cmd_line_setup_args
-	movl	%esi, %ebx
+	mov	%esi, %ebx
 	call	opf_boot_from_file
 	# vvvv fall through vvvv
 
 opf_exit:
-	movl	$opf_syscall_exit, %eax
-	movl	$opf_exit_success, %ebx
+	mov	$opf_syscall_exit, %eax
+	mov	$opf_exit_success, %ebx
 	int	$opf_syscall
 
 
 opf_cmd_line_parse_int:
-	pushl	%edx
-	xorl	%ecx, %ecx
-	decl	%ecx
-	pushl	%esi
-	addl	$(2*opf_char_size), %esi
-	pushl	%ebx
+	push	%edx
+	xor	%ecx, %ecx
+	dec	%ecx
+	push	%esi
+	add	$(2*opf_char_size), %esi
+	push	%ebx
 	call	opf_atou
-	popl	%ebx
-	popl	%esi
-	popl	%edx
-	movl	%edi, (%edx)
-	testl	%ecx, %ecx
+	pop	%ebx
+	pop	%esi
+	pop	%edx
+	mov	%edi, (%edx)
+	test	%ecx, %ecx
 	jz	opf_cmd_line_next
-	negl	%ecx
-	addl	$(2*opf_char_size), %ecx
+	neg	%ecx
+	add	$(2*opf_char_size), %ecx
 	jmp	opf_bad_word_abort
 
 
 opf_cmd_line_setup_args:
-	leal	opf_C, %ecx
+	lea	opf_C, %ecx
 	call	opf_anon_mmap
-	leal	opf_H, %ecx
+	lea	opf_H, %ecx
 	call	opf_anon_mmap
-	leal	opf_S, %ecx
+	lea	opf_S, %ecx
 	call	opf_anon_mmap
-	movl	opf_S_size, %ebp
-	addl	%eax, %ebp
+	mov	opf_S_size, %ebp
+	add	%eax, %ebp
 	ret
 
 
 opf_text_interpreter:
 	call	opf_in_wsw
-	testl	%ecx, %ecx
+	test	%ecx, %ecx
 	jle	opf_text_interpreter_end
-	leal	opf_defined_vector, %ebx
+	lea	opf_defined_vector, %ebx
 	call	opf_dict_find	
 	call	*(%ebx)
 	jmp	opf_text_interpreter
@@ -249,40 +249,40 @@ opf_defined_compile:
 
 
 opf_number_convert:
-	pushl	%ecx
-	pushl	%esi
-	movl	opf_number_vector, %ebx
+	push	%ecx
+	push	%esi
+	mov	opf_number_vector, %ebx
 	call	*%ebx
-	popl	%esi
-	testl	%ecx, %ecx
+	pop	%esi
+	test	%ecx, %ecx
 	jne	opf_number_convert_fail
-	popl	%ecx
+	pop	%ecx
 	ret
 opf_number_convert_fail:
-	movl	opf_not_number_vector, %ebx
-	popl	%ecx
+	mov	opf_not_number_vector, %ebx
+	pop	%ecx
 	jmp	*%ebx
 
 
 opf_bad_word_abort:
-	movl	%ecx, %edx
-	movl	%esi, %ecx
-	movl	$opf_stderr, %ebx
-	movl	$opf_syscall_write, %eax
+	mov	%ecx, %edx
+	mov	%esi, %ecx
+	mov	$opf_stderr, %ebx
+	mov	$opf_syscall_write, %eax
 	int	$opf_syscall
-	movl	$3, %edx
-	leal	opf_word_fail_msg, %ecx
-	movl	$opf_syscall_write, %eax
+	mov	$3, %edx
+	lea	opf_word_fail_msg, %ecx
+	mov	$opf_syscall_write, %eax
 	int	$opf_syscall
-	movl	$opf_error_bad_word, %eax
+	mov	$opf_error_bad_word, %eax
 	jmp	opf_abort
 
 
 opf_number_interpret:
 	call	opf_number_convert
-	movl	%eax, -opf_cell_size(%ebp)
-	subl	$opf_cell_size, %ebp
-	movl	%edi, %eax
+	mov	%eax, -opf_cell_size(%ebp)
+	sub	$opf_cell_size, %ebp
+	mov	%edi, %eax
 	ret	
 
 opf_number_compile:
@@ -290,183 +290,183 @@ opf_number_compile:
 	# vvvv fall through vvvvv
 
 opf_number_plant_literal:
-	movl	opf_Qi, %ebx
-	leal	opf_Q, %ecx
-	addl	%ebx, %ecx
-	movl	opf_q_head(%ecx), %ebx
-	cmpl	$opf_drop_head, %ebx
+	mov	opf_Qi, %ebx
+	lea	opf_Q, %ecx
+	add	%ebx, %ecx
+	mov	opf_q_head(%ecx), %ebx
+	cmp	$opf_drop_head, %ebx
 	je	opf_number_plant_literal_after_drop
-	movl	opf_C, %ebx
+	mov	opf_C, %ebx
 	movl	$0xB8FC4589, (%ebx)
-	movl	%edi, opf_cell_size(%ebx)
+	mov	%edi, opf_cell_size(%ebx)
 	movl	$0x0004ED83, (2*opf_cell_size)(%ebx)
-	movl	$opf_q_head_lit, %edx
-	movl	%ebx, %edi
+	mov	$opf_q_head_lit, %edx
+	mov	%ebx, %edi
 	call	opf_Q_add
-	addl	$(opf_cell_size+opf_cell_size+opf_cell_size-1), %ebx
-	movl	%ebx, opf_C
+	add	$(opf_cell_size+opf_cell_size+opf_cell_size-1), %ebx
+	mov	%ebx, opf_C
 	ret
 
 opf_number_plant_literal_after_drop:
-	movl	opf_q_code(%ecx), %ebx
+	mov	opf_q_code(%ecx), %ebx
 	movb	$0xB8, (%ebx)
-	movl	%edi, opf_char_size(%ebx)
-	addl	$(opf_char_size+opf_cell_size), %ebx
+	mov	%edi, opf_char_size(%ebx)
+	add	$(opf_char_size+opf_cell_size), %ebx
 	movl	$opf_q_head_drop_lit, opf_q_head(%ecx)
-	movl	%ebx, opf_C
+	mov	%ebx, opf_C
 	ret
 
 
 opf_compile_call:
-	movl	opf_C, %edi
+	mov	opf_C, %edi
 	call	opf_Q_add
 	movb	$opf_opcode_call, (%edi)
-	addl	$(opf_call_size), %edi
-	movl	opf_h_code(%edx), %ebx
-	subl	%edi, %ebx
-	movl	%edi, opf_C
-	movl	%ebx, -opf_cell_size(%edi)
+	add	$(opf_call_size), %edi
+	mov	opf_h_code(%edx), %ebx
+	sub	%edi, %ebx
+	mov	%edi, opf_C
+	mov	%ebx, -opf_cell_size(%edi)
 	ret
 
 opf_compile_inline:
-	movl	opf_C, %edi
+	mov	opf_C, %edi
 	call	opf_Q_add
-	xorl	%ecx, %ecx
-	movl	opf_h_code(%edx), %esi
+	xor	%ecx, %ecx
+	mov	opf_h_code(%edx), %esi
 	movb	opf_h_inline(%edx), %cl
 	rep
 	movsb
-	movl	%edi, opf_C
+	mov	%edi, opf_C
 	ret
 
 
 opf_Q_add:
-	movl	opf_Qi, %esi
-	leal	opf_Q, %ecx
-	addl	$opf_q__size, %esi
-	andl	$opf_q_mask, %esi
-	movl	%edx, opf_q_head(%ecx, %esi)
-	movl	%edi, opf_q_code(%ecx, %esi)
-	movl	%esi, opf_Qi
+	mov	opf_Qi, %esi
+	lea	opf_Q, %ecx
+	add	$opf_q__size, %esi
+	and	$opf_q_mask, %esi
+	mov	%edx, opf_q_head(%ecx, %esi)
+	mov	%edi, opf_q_code(%ecx, %esi)
+	mov	%esi, opf_Qi
 	ret
 
 
 opf_abort:
-	movl	opf_abort_vector, %ebx
+	mov	opf_abort_vector, %ebx
 	jmp	*%ebx
 
 
 opf_abort_default:
-	movl	%eax, %ebx
-	movl	$opf_syscall_exit, %eax
+	mov	%eax, %ebx
+	mov	$opf_syscall_exit, %eax
 	int	$opf_syscall
 
 
 opf_in_wsw:	
-	movl	opf_H, %edi
-	movl	opf_I, %ebx
-	pushl	%edi
+	mov	opf_H, %edi
+	mov	opf_I, %ebx
+	push	%edi
 opf_in_wsw_restart:
-	movl	opf_in_p(%ebx), %esi
+	mov	opf_in_p(%ebx), %esi
 opf_in_wsw_find_start:
 	movb	(%esi), %cl
-	incl	%esi
+	inc	%esi
 	cmpb	$' ', %cl
 	je	opf_in_wsw_find_start
 	cmpb	$'\n', %cl
 	je	opf_in_wsw_nl_in_ws
 opf_in_wsw_found_start: 
 	movb	%cl, (%edi)
-	incl	%edi
+	inc	%edi
 opf_in_wsw_next_word_char:
 	movb	(%esi), %cl
-	incl	%esi
+	inc	%esi
 	cmpb	$'\n', %cl
 	je	opf_in_wsw_nl_in_word
 	cmpb	$' ', %cl
 	jne	opf_in_wsw_found_start
 opf_in_wsw_found_end:
-	movl	%esi, opf_in_p(%ebx)
-	popl	%esi
-	movl	%edi, %ecx
-	subl	%esi, %ecx
+	mov	%esi, opf_in_p(%ebx)
+	pop	%esi
+	mov	%edi, %ecx
+	sub	%esi, %ecx
 	ret
 opf_in_wsw_nl_in_ws:
 	cmp	%esi, opf_in_e(%ebx)
 	jne	opf_in_wsw_find_start
 	call	*opf_in_refill(%ebx)
-	testl	%edx, %edx
+	test	%edx, %edx
 	jg	opf_in_wsw_restart
-	popl	%edi
-	movl	%edx, %ecx
+	pop	%edi
+	mov	%edx, %ecx
 	ret
 opf_in_wsw_nl_in_word:
-	cmpl	%esi, opf_in_e(%ebx)
+	cmp	%esi, opf_in_e(%ebx)
 	jne	opf_in_wsw_nl_in_word_end
 	call	*opf_in_refill(%ebx)
-	movl	opf_in_p(%ebx), %esi
-	testl	%edx, %edx
+	mov	opf_in_p(%ebx), %esi
+	test	%edx, %edx
 	jg	opf_in_wsw_next_word_char
-	popl	%edi
-	movl	%edx, %ecx
+	pop	%edi
+	mov	%edx, %ecx
 	ret
 opf_in_wsw_nl_in_word_end:
-	decl	%esi
+	dec	%esi
 	jmp	opf_in_wsw_found_end
 
 
 opf_in_fd_refill:
-	pushl	%eax
-	movl	opf_in_s(%ebx), %ecx
-	movl	%ecx, opf_in_p(%ebx)
-	movl	opf_in_fd_bs(%ebx), %edx
-	pushl	%ebx
-	movl	opf_in_fd_fd(%ebx), %ebx
-	movl	$opf_syscall_read, %eax
+	push	%eax
+	mov	opf_in_s(%ebx), %ecx
+	mov	%ecx, opf_in_p(%ebx)
+	mov	opf_in_fd_bs(%ebx), %edx
+	push	%ebx
+	mov	opf_in_fd_fd(%ebx), %ebx
+	mov	$opf_syscall_read, %eax
 	int	$opf_syscall
-	popl	%ebx
-	movl	%eax, %edx
-	testl	%eax, %eax
+	pop	%ebx
+	mov	%eax, %edx
+	test	%eax, %eax
 	jle	opf_in_fd_refill_end
-	addl	%eax, %ecx
+	add	%eax, %ecx
 	movb	$'\n', (%ecx)
-	incl	%ecx
-	movl	%ecx, opf_in_e(%ebx)
+	inc	%ecx
+	mov	%ecx, opf_in_e(%ebx)
 opf_in_fd_refill_end:
-	popl	%eax
+	pop	%eax
 	ret
 
 
 opf_in_skip:
-	movl	opf_I, %ebx
+	mov	opf_I, %ebx
 opf_in_skip_again:
-	movl	opf_in_p(%ebx), %esi
+	mov	opf_in_p(%ebx), %esi
 opf_in_skip_next:
 	movb	(%esi), %dl
-	incl	%esi
+	inc	%esi
 	cmpb	$'\n', %dl
 	je	opf_in_skip_nl
 opf_in_skip_check_char:
 	cmpb	%cl, %dl
 	jne	opf_in_skip_next
 opf_in_skip_found:
-	movl	%esi, opf_in_p(%ebx)	
+	mov	%esi, opf_in_p(%ebx)	
 	ret
 opf_in_skip_nl:
-	cmpl	%esi, opf_in_e(%ebx)
+	cmp	%esi, opf_in_e(%ebx)
 	jne	opf_in_skip_check_char
-	pushl	%ecx
+	push	%ecx
 	call	*opf_in_refill(%ebx)
-	popl	%ecx
-	testl	%edx, %edx
+	pop	%ecx
+	test	%edx, %edx
 	jg	opf_in_skip_again
 	ret
 
 
 opf_atou:
-	pushl	%eax
-	xorl	%edi, %edi
-	movl	opf_B, %ebx
+	push	%eax
+	xor	%edi, %edi
+	mov	opf_B, %ebx
 opf_atou_loop:
 	lodsb
 	testb	%al, %al
@@ -486,69 +486,69 @@ opf_atou_loop:
 opf_atou_digit:
 	cbw
 	cwde
-	cmpl	%ebx, %eax
+	cmp	%ebx, %eax
 	jge	opf_atou_not_digit
-	xchgl	%edi, %eax			 # slow instruction!
+	xchg	%edi, %eax			 # slow instruction!
 	mull	%ebx
-	addl	%eax, %edi
-	decl	%ecx
+	add	%eax, %edi
+	dec	%ecx
 	jne	opf_atou_loop
 opf_atou_nul:
-	xorl	%ecx, %ecx
+	xor	%ecx, %ecx
 opf_atou_not_digit:
-	popl	%eax
+	pop	%eax
 	ret
 
 
 opf_dict_find:
-	movl	opf_D, %edx   
-	pushl	%eax
+	mov	opf_D, %edx   
+	push	%eax
 opf_dict_find_next:
-	testl	%edx, %edx
+	test	%edx, %edx
 	je	opf_dict_find_fail
 	cmpb	%cl, (%edx)
 	je	opf_dict_find_check_str
-	movl	opf_h_next(%edx), %edx
+	mov	opf_h_next(%edx), %edx
 	jmp	opf_dict_find_next
 opf_dict_find_check_str:
-	pushl	%esi
-	pushl	%ecx
-	movl	%edx, %edi
-	subl	%ecx, %edi
+	push	%esi
+	push	%ecx
+	mov	%edx, %edi
+	sub	%ecx, %edi
 	repe
 	cmpsb
 	je	opf_dict_find_found
-	popl	%ecx
-	popl	%esi
-	movl	opf_h_next(%edx), %edx
+	pop	%ecx
+	pop	%esi
+	mov	opf_h_next(%edx), %edx
 	jmp	opf_dict_find_next
 opf_dict_find_found:
-	popl	%ecx
-	popl	%edi		 # arbitrary register.
-	popl	%eax
+	pop	%ecx
+	pop	%edi		 # arbitrary register.
+	pop	%eax
 	ret
 opf_dict_find_fail:
-	xorl	%edx, %edx
-	addl	$opf_cell_size, %ebx
-	popl	%eax
+	xor	%edx, %edx
+	add	$opf_cell_size, %ebx
+	pop	%eax
 	ret
 
 
 opf_in_word_code:
 	call	opf_in_wsw
-	testl	%ecx, %ecx
+	test	%ecx, %ecx
 	jle	opf_abort
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	%esi, -(2*opf_cell_size)(%ebp)
-	movl	%ecx, %eax
-	subl	$(opf_cell_size*2), %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	%esi, -(2*opf_cell_size)(%ebp)
+	mov	%ecx, %eax
+	sub	$(opf_cell_size*2), %ebp
 	ret
 
 
 opf_vars_code:
 opf_debug_break:
-	leal	opf_argc, %ebx
-	leal	(%ebx, %eax, 4), %eax
+	lea	opf_argc, %ebx
+	lea	(%ebx, %eax, 4), %eax
 	ret
 
 
@@ -558,104 +558,104 @@ opf_line_comment_code:
 
 
 opf_dict_store_word_code:
-	movl	opf_C, %edi
+	mov	opf_C, %edi
 	stosl
-	movl	(%ebp), %eax
-	movl	%edi, opf_C
-	addl	$opf_cell_size, %ebp
+	mov	(%ebp), %eax
+	mov	%edi, opf_C
+	add	$opf_cell_size, %ebp
 	ret
 
 	opf_input_stack_adjust = opf_in_fd__size+opf_in_fd_block_size+1
 
 opf_input_from_fd_code:
-	xorl	%ebx, %ebx		# null file-name
+	xor	%ebx, %ebx		# null file-name
 opf_input_from_fd:
-	pushl	%eax
-	pushl	opf_I
-	leal	-opf_in_fd__size(%esp), %edi
-	movl	%edi, opf_I
-	leal	-opf_input_stack_adjust(%esp), %ecx
-	leal	opf_in_fd_refill, %eax
-	movl	%eax, opf_in_refill(%edi)
-	movl	%ebx, opf_in_name(%edi)
-	movl	%ecx, %eax
-	movl	%eax, opf_in_p(%edi)
-	movl	%eax, opf_in_s(%edi)
+	push	%eax
+	push	opf_I
+	lea	-opf_in_fd__size(%esp), %edi
+	mov	%edi, opf_I
+	lea	-opf_input_stack_adjust(%esp), %ecx
+	lea	opf_in_fd_refill, %eax
+	mov	%eax, opf_in_refill(%edi)
+	mov	%ebx, opf_in_name(%edi)
+	mov	%ecx, %eax
+	mov	%eax, opf_in_p(%edi)
+	mov	%eax, opf_in_s(%edi)
 	movb	$'\n', (%eax)
-	incl	%eax
-	movl	%eax, opf_in_e(%edi)
-	movl	4(%esp), %eax		# opf_in_fd_fd
+	inc	%eax
+	mov	%eax, opf_in_e(%edi)
+	mov	4(%esp), %eax		# opf_in_fd_fd
 	movl	$opf_in_fd_block_size, opf_in_fd_bs(%edi)
-	movl	%eax, opf_in_fd_fd(%edi)
-	movl	%ecx, %esp
+	mov	%eax, opf_in_fd_fd(%edi)
+	mov	%ecx, %esp
 	call	opf_text_interpreter
-	addl	$opf_input_stack_adjust, %esp
-	popl	opf_I
-	popl	%eax
+	add	$opf_input_stack_adjust, %esp
+	pop	opf_I
+	pop	%eax
 	ret
 
 
 opf_input_from_file_code:
 	call	opf_in_wsw
-	testl	%ecx, %ecx
+	test	%ecx, %ecx
 	jle	opf_abort
 	movb	$0, (%edi)
-	movl	%esi, %ebx
+	mov	%esi, %ebx
 	# vvvv fall through vvvv
 
 opf_boot_from_file:
-	pushl	%eax
-	pushl	%ebx
+	push	%eax
+	push	%ebx
 	cmpb	$'/', (%ebx)
 	je	opf_boot_from_file_absolute
-	movl	opf_L, %ecx
+	mov	opf_L, %ecx
 opf_boot_from_file_next:
-	movl	(%esp), %ebx
-	movl	(%ecx), %esi
-	testl	%esi, %esi
+	mov	(%esp), %ebx
+	mov	(%ecx), %esi
+	test	%esi, %esi
 	je	opf_boot_from_file_not_found
-	movl	opf_C, %edi
-	pushl	%edi
+	mov	opf_C, %edi
+	push	%edi
 	call	opf_strcpy
 	movl	$'/', (%edi)
-	incl	%edi
-	movl	%ebx, %esi
+	inc	%edi
+	mov	%ebx, %esi
 	call	opf_strcpy
 	movb	$0, (%edi)
-	popl	%ebx
-	pushl	%ecx
-	xorl	%ecx, %ecx
-	movl	$opf_syscall_open, %eax
+	pop	%ebx
+	push	%ecx
+	xor	%ecx, %ecx
+	mov	$opf_syscall_open, %eax
 	int	$opf_syscall
-	popl	%ecx
-	testl	%eax, %eax
+	pop	%ecx
+	test	%eax, %eax
 	jg	opf_boot_from_file_eval
-	subl	$opf_cell_size, %ecx
+	sub	$opf_cell_size, %ecx
 	jmp	opf_boot_from_file_next
 
 
 opf_boot_from_file_absolute:
-	xorl	%ecx, %ecx
-	movl	$opf_syscall_open, %eax
+	xor	%ecx, %ecx
+	mov	$opf_syscall_open, %eax
 	int	$opf_syscall
-	testl	%eax, %eax
+	test	%eax, %eax
 	jl	opf_boot_from_file_not_found
 	# vvvv fall through vvvvv
 
 opf_boot_from_file_eval:
 	call	opf_input_from_fd
-	movl	%eax, %ebx
-	movl	$opf_syscall_close, %eax
+	mov	%eax, %ebx
+	mov	$opf_syscall_close, %eax
 	int	$opf_syscall
-	addl	$opf_cell_size, %esp
-	popl	%eax
+	add	$opf_cell_size, %esp
+	pop	%eax
 	ret
 
 opf_boot_from_file_not_found:
-	addl	$(2*opf_cell_size), %esp
-	movl	%ebx, %esi
+	add	$(2*opf_cell_size), %esp
+	mov	%ebx, %esi
 	call	opf_strlen
-	movl	%ebx, %esi
+	mov	%ebx, %esi
 	jmp	opf_bad_word_abort
 
 
@@ -664,207 +664,207 @@ opf_strcpy:
 	testb	%al, %al
 	jz	opf_strcpy_finished
 	movb	%al, (%edi)
-	incl	%esi
-	incl	%edi
+	inc	%esi
+	inc	%edi
 	jmp	opf_strcpy
 opf_strcpy_finished:
 	ret
 
 
 opf_strlen:
-	xorl	%ecx, %ecx
+	xor	%ecx, %ecx
 opf_strlen_next:
 	cmpb	$0, (%esi)
 	je	opf_strlen_finished
-	incl	%ecx
-	incl	%esi
+	inc	%ecx
+	inc	%esi
 	jmp	opf_strlen_next
 opf_strlen_finished:
 	ret
 
 
 opf_double_code:
-	shll	$1, %eax
+	shl	$1, %eax
 opf_double_code_end:
 	ret
 
 
 opf_halve_code:
-	shrl	$1, %eax
+	shr	$1, %eax
 opf_halve_code_end:
 	ret
 
 
 opf_dup_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	sub	$opf_cell_size, %ebp
 opf_dup_code_end:
 	ret
 
 
 opf_drop_code:
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_drop_code_end:
 	ret
 
 
 opf_over_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	(%ebp), %eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	(%ebp), %eax
+	sub	$opf_cell_size, %ebp
 opf_over_code_end:
 	ret
 
 
 opf_nip_code:
-	addl	$opf_cell_size, %ebp
+	add	$opf_cell_size, %ebp
 opf_nip_code_end:
 	ret
 
 
 opf_tuck_code:
-	movl	(%ebp), %ebx
-	movl	%eax, (%ebp)
-	movl	%ebx, -opf_cell_size(%ebp)
-	subl	$opf_cell_size, %ebp
+	mov	(%ebp), %ebx
+	mov	%eax, (%ebp)
+	mov	%ebx, -opf_cell_size(%ebp)
+	sub	$opf_cell_size, %ebp
 opf_tuck_code_end:
 	ret
 
 opf_swap_code:
-	xchgl	(%ebp), %eax
+	xchg	(%ebp), %eax
 opf_swap_code_end:
 	ret
 
 
 opf_push_code:
-	pushl	%eax
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	push	%eax
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_push_code_end:
 	ret
 
 
 opf_pop_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	popl	%eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	pop	%eax
+	sub	$opf_cell_size, %ebp
 opf_pop_code_end:
 	ret
 
 
 opf_sum_code:
-	addl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	add	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_sum_code_end:
 	ret
 
 
 opf_sub_code:
-	movl	(%ebp), %ebx
-	subl	%eax, %ebx
-	movl	%ebx, %eax
-	addl	$opf_cell_size, %ebp
+	mov	(%ebp), %ebx
+	sub	%eax, %ebx
+	mov	%ebx, %eax
+	add	$opf_cell_size, %ebp
 opf_sub_code_end:
 	ret
 
 
 opf_compile_add_sub:
-	movl	opf_Qi, %ebx
-	leal	opf_Q, %ecx
-	addl	%ebx, %ecx
-	movl	opf_q_head(%ecx), %ebx
-	cmpl	$opf_q_head_lit, %ebx
+	mov	opf_Qi, %ebx
+	lea	opf_Q, %ecx
+	add	%ebx, %ecx
+	mov	opf_q_head(%ecx), %ebx
+	cmp	$opf_q_head_lit, %ebx
 	jne	opf_compile_inline
-	pushl	%eax
-	movl	opf_q_code(%ecx), %esi
-	movl	opf_cell_size(%esi), %ebx
-	leal	opf_h_add_sub_table(%edx), %edi
-	cmpl	$0xFF, %ebx
+	push	%eax
+	mov	opf_q_code(%ecx), %esi
+	mov	opf_cell_size(%esi), %ebx
+	lea	opf_h_add_sub_table(%edx), %edi
+	cmp	$0xFF, %ebx
 	ja	opf_compile_add_sub_long
-	cmpl	$1, %ebx
+	cmp	$1, %ebx
 	jne	opf_compile_add_sub_short
 	movb	opf_add_sub_one(%edi), %al
 	movb	%al, (%esi)
-	incl	%esi
+	inc	%esi
 	jmp	opf_compile_add_sub_adjust_q
 opf_compile_add_sub_short:
 	movw	opf_add_sub_short(%edi), %ax
 	movw	%ax, (%esi)
 	movb	%bl, opf_add_sub_short_delta(%esi)
-	addl	$opf_add_sub_short_size, %esi
+	add	$opf_add_sub_short_size, %esi
 	jmp	opf_compile_add_sub_adjust_q
 opf_compile_add_sub_long:
 	movb	opf_add_sub_long(%edi), %al
 	movb	%al, (%esi)
-	movl	%ebx, opf_char_size(%esi)
-	addl	$opf_add_sub_long_size, %esi
+	mov	%ebx, opf_char_size(%esi)
+	add	$opf_add_sub_long_size, %esi
 opf_compile_add_sub_adjust_q:
-	xorl	%edx, %edx
-	movl	%edx, opf_q_head(%ecx)
-	movl	%esi, opf_C
-	popl	%eax
+	xor	%edx, %edx
+	mov	%edx, opf_q_head(%ecx)
+	mov	%esi, opf_C
+	pop	%eax
 	ret
 
 
 opf_eq_code:
-	xorl	(%ebp), %eax
-	notl	%eax
-	addl	$opf_cell_size, %ebp
+	xor	(%ebp), %eax
+	not	%eax
+	add	$opf_cell_size, %ebp
 	ret
 
 opf_le_code:
-	subl	(%ebp), %eax
-	notl	%eax
-	shrl	$31, %eax
-	addl	$opf_cell_size, %ebp
+	sub	(%ebp), %eax
+	not	%eax
+	shr	$31, %eax
+	add	$opf_cell_size, %ebp
 	ret
 
 opf_gt_code:
-	subl	(%ebp), %eax
-	shrl	$31, %eax
-	addl	$opf_cell_size, %ebp
+	sub	(%ebp), %eax
+	shr	$31, %eax
+	add	$opf_cell_size, %ebp
 opf_gt_code_end:
 	ret
 
 
 opf_and_code:
-	andl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	and	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_and_code_end:
 	ret
 
 
 opf_or_code:
-	orl    (%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	or	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_or_code_end:
 	ret
 
 
 opf_xor_code:
-	xorl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	xor	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 opf_xor_code_end:
 	ret
 
 
 opf_store_code:
-	movl	(%ebp), %ebx
-	movl	%ebx, (%eax)
-	movl	opf_cell_size(%ebp), %eax
-	addl	$(2*opf_cell_size), %ebp
+	mov	(%ebp), %ebx
+	mov	%ebx, (%eax)
+	mov	opf_cell_size(%ebp), %eax
+	add	$(2*opf_cell_size), %ebp
 	ret
 
 opf_fetch_code:
-	movl	(%eax), %eax
+	mov	(%eax), %eax
 opf_fetch_code_end:
 	ret
 
 
 opf_swap_state_code:
-	leal	opf_defined_vector, %esi
-	leal	opf_defined_vector_cache, %edi
+	lea	opf_defined_vector, %esi
+	lea	opf_defined_vector_cache, %edi
 	fldl	(%edi)
 	fldl	(%esi)
 	fstpl	(%edi)
@@ -873,131 +873,131 @@ opf_swap_state_code:
 
 
 opf_return_code:
-	movl	opf_Qi, %ebx
-	leal	opf_Q, %ecx
-	movl	opf_D, %edx
-	addl	%ebx, %ecx
-	movl	opf_q_code(%ecx), %ebx
-	movl	opf_h_code(%edx), %esi
+	mov	opf_Qi, %ebx
+	lea	opf_Q, %ecx
+	mov	opf_D, %edx
+	add	%ebx, %ecx
+	mov	opf_q_code(%ecx), %ebx
+	mov	opf_h_code(%edx), %esi
 	cmpb	$opf_opcode_call, (%ebx)
 	jne	opf_return_code_inline_or_ret
-	cmpl	%ebx, %esi
+	cmp	%ebx, %esi
 	je	opf_return_code_alias
 	movb	$opf_opcode_jmp, (%ebx)
 	ret
 opf_return_code_inline_or_ret:
-	movl	opf_C, %edi
-	cmpl	%ebx, %esi
+	mov	opf_C, %edi
+	cmp	%ebx, %esi
 	je	opf_return_code_inline
 opf_return_code_ret:
-	leal	opf_return_head, %edx
+	lea	opf_return_head, %edx
 	movb	$opf_opcode_ret, (%edi)
 	call	opf_Q_add
-	incl	%edi
-	movl	%edi, opf_C
+	inc	%edi
+	mov	%edi, opf_C
 	ret
 opf_return_code_inline:
-	movl	%edi, %ebx	  
-	subl	%esi, %ebx
-	movl	%ebx, opf_h_inline(%edx)
-	movl	opf_q_head(%ecx), %ebx
-	leal	opf_compile_inline, %esi
+	mov	%edi, %ebx	  
+	sub	%esi, %ebx
+	mov	%ebx, opf_h_inline(%edx)
+	mov	opf_q_head(%ecx), %ebx
+	lea	opf_compile_inline, %esi
 	incl	opf_H
-	movl	%esi, opf_h_comp(%edx)
-	cmpl	$opf_q_head_max, %ebx
+	mov	%esi, opf_h_comp(%edx)
+	cmp	$opf_q_head_max, %ebx
 	jl	opf_return_code_ret
 opf_return_code_inline_alias:
-	movl	opf_h_code(%edx), %esi
-	movl	opf_h_code(%ebx), %edi
-	movl	%esi, opf_C
-	movl	%edi, opf_h_code(%edx)
+	mov	opf_h_code(%edx), %esi
+	mov	opf_h_code(%ebx), %edi
+	mov	%esi, opf_C
+	mov	%edi, opf_h_code(%edx)
 opf_Q_remove:
-	movl	opf_Qi, %ebx
-	subl	$opf_q__size, %ebx
-	andl	$opf_q_mask, %ebx
-	movl	%ebx, opf_Qi	    
+	mov	opf_Qi, %ebx
+	sub	$opf_q__size, %ebx
+	and	$opf_q_mask, %ebx
+	mov	%ebx, opf_Qi	    
 	ret
 opf_return_code_alias:
-	movl	-opf_cell_size(%edi), %ecx
-	addl	%edi, %ecx		# possibly replace with 
-	subl	$opf_call_size, %edi	# leal -opf_call_size(%edi,%ecx), %ecx
-	movl	%ecx, opf_h_code(%edx)
-	movl	%edi, opf_C
+	mov	-opf_cell_size(%edi), %ecx
+	add	%edi, %ecx		# possibly replace with 
+	sub	$opf_call_size, %edi	# lea -opf_call_size(%edi,%ecx), %ecx
+	mov	%ecx, opf_h_code(%edx)
+	mov	%edi, opf_C
 	jmp	opf_Q_remove
 
 
 opf_def_code:
 	call	opf_in_wsw
-	testl	%ecx, %ecx
+	test	%ecx, %ecx
 	jle	opf_abort
-	movl	opf_D, %ebx
-	movl	%edi, opf_D
+	mov	opf_D, %ebx
+	mov	%edi, opf_D
 	movb	%cl, (%edi)
-	movl	%ebx, opf_h_next(%edi)
-	movl	opf_C, %ebx
-	movl	opf_X, %ecx
-	movl	%ebx, opf_h_code(%edi)
-	movl	%ecx, opf_h_comp(%edi)
-	addl	$opf_h__size, %edi
-	movl	%edi, opf_H
+	mov	%ebx, opf_h_next(%edi)
+	mov	opf_C, %ebx
+	mov	opf_X, %ecx
+	mov	%ebx, opf_h_code(%edi)
+	mov	%ecx, opf_h_comp(%edi)
+	add	$opf_h__size, %edi
+	mov	%edi, opf_H
 	ret
 
 
 opf_u_to_string:
-	movl	opf_B, %ecx
-	movl	%ebx, %esi
+	mov	opf_B, %ecx
+	mov	%ebx, %esi
 opf_u_to_string_loop:
-	decl	%ebx
-	xorl	%edx, %edx
-	divl	%ecx, %eax
+	dec	%ebx
+	xor	%edx, %edx
+	div	%ecx, %eax
 	addb	$'0', %dl
 	cmpb	$'9', %dl
 	jle	opf_u_to_string_digit
 	addb	$('A'-'9'-1), %dl
 opf_u_to_string_digit:
 	movb	%dl, (%ebx)
-	testl	%eax, %eax
+	test	%eax, %eax
 	jne	opf_u_to_string_loop
-	subl	%ebx, %esi
+	sub	%ebx, %esi
 	ret
 
 
 opf_emit_code:
-	pushl	%eax
-	movl	%esp, %ecx
-	movl	$opf_char_size, %edx
-	movl	$opf_stdout, %ebx
-	movl	$opf_syscall_write, %eax
+	push	%eax
+	mov	%esp, %ecx
+	mov	$opf_char_size, %edx
+	mov	$opf_stdout, %ebx
+	mov	$opf_syscall_write, %eax
 	int	$opf_syscall
-	addl	$opf_cell_size, %esp
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	add	$opf_cell_size, %esp
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 	ret
 
 
 opf_type_code:
-	movl	%eax, %edx
-	movl	(%ebp), %ecx
-	movl	$opf_stdout, %ebx
-	movl	$opf_syscall_write, %eax
+	mov	%eax, %edx
+	mov	(%ebp), %ecx
+	mov	$opf_stdout, %ebx
+	mov	$opf_syscall_write, %eax
 	int	$opf_syscall
-	movl	opf_cell_size(%ebp), %eax
-	addl	$(2*opf_cell_size), %ebp
+	mov	opf_cell_size(%ebp), %eax
+	add	$(2*opf_cell_size), %ebp
 	ret
 
 
 opf_dot_code:
-	movl	%esp, %ebx
-	subl	$opf_pad_size, %esp
+	mov	%esp, %ebx
+	sub	$opf_pad_size, %esp
 	call	opf_u_to_string
-	movl	%esi, %edx
-	movl	%ebx, %ecx
-	movl	$opf_stdout, %ebx
-	movl	$opf_syscall_write, %eax
+	mov	%esi, %edx
+	mov	%ebx, %ecx
+	mov	$opf_stdout, %ebx
+	mov	$opf_syscall_write, %eax
 	int	$opf_syscall
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
-	addl	$opf_pad_size, %esp
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
+	add	$opf_pad_size, %esp
 	ret
 
 opf_lif_cond_table:
@@ -1010,94 +1010,94 @@ opf_lif_cond_table:
 	.long 0
 
 opf_lif_code:
-	movl	opf_Qi, %ebx
-	leal	opf_Q, %ecx
-	addl	%ebx, %ecx
-	movl	opf_q_head(%ecx), %ebx
-	cmpl	$opf_q_head_max, %ebx
+	mov	opf_Qi, %ebx
+	lea	opf_Q, %ecx
+	add	%ebx, %ecx
+	mov	opf_q_head(%ecx), %ebx
+	cmp	$opf_q_head_max, %ebx
 	jb	opf_lif_code_default
-	leal	opf_lif_cond_table, %edi
-	movl	opf_h_code(%ebx), %esi
+	lea	opf_lif_cond_table, %edi
+	mov	opf_h_code(%ebx), %esi
 opf_lif_code_find_cond:
-	movl	opf_lif_cond_code_addr(%edi), %ebx
-	testl	%ebx, %ebx
+	mov	opf_lif_cond_code_addr(%edi), %ebx
+	test	%ebx, %ebx
 	jz	opf_lif_code_default
-	addl	$opf_lif_cond__size, %edi
-	cmpl	%ebx, %esi
+	add	$opf_lif_cond__size, %edi
+	cmp	%ebx, %esi
 	jne	opf_lif_code_find_cond
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	opf_q_code(%ecx), %eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	opf_q_code(%ecx), %eax
+	sub	$opf_cell_size, %ebp
 	movl	$0x4D8BC389, (%eax)
 	movl	$0x04458B00, opf_cell_size(%eax)
 	movl	$0x3908C583, (2*opf_cell_size)(%eax)
 	movb	$0xD9, (3*opf_cell_size)(%eax)
 	movb	(-opf_lif_cond__size+opf_lif_cond_opcode)(%edi), %bl
 	movb	%bl, (opf_char_size+3*opf_cell_size)(%eax)
-	xorl	%edx, %edx
-	movl	%edx, opf_q_head(%ecx)
-	addl	$(4*opf_cell_size-opf_char_size), %eax
-	movl	%eax, opf_C
+	xor	%edx, %edx
+	mov	%edx, opf_q_head(%ecx)
+	add	$(4*opf_cell_size-opf_char_size), %eax
+	mov	%eax, opf_C
 	ret
 
 opf_lif_code_default:
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	opf_C, %eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	opf_C, %eax
+	sub	$opf_cell_size, %ebp
 	movl	$0x458BC389, (%eax)
 	movl	$0x04C58300, opf_cell_size(%eax)
 	movl	$0x0074db85, (2*opf_cell_size)(%eax)
-	xorl	%edx, %edx
-	movl	%eax, %edi
+	xor	%edx, %edx
+	mov	%eax, %edi
 	call	opf_Q_add
-	addl	$(3*opf_cell_size), %eax
-	movl	%eax, opf_C
+	add	$(3*opf_cell_size), %eax
+	mov	%eax, opf_C
 	ret
 
 
 opf_if_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	opf_C, %eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	opf_C, %eax
+	sub	$opf_cell_size, %ebp
 	movl	$0x0074C085, (%eax)
-	xorl	%edx, %edx
-	movl	%eax, %edi
+	xor	%edx, %edx
+	mov	%eax, %edi
 	call	opf_Q_add
-	addl	$opf_cell_size, %eax
-	movl	%eax, opf_C
+	add	$opf_cell_size, %eax
+	mov	%eax, opf_C
 	ret
 
 opf_then_code:
-	movl	opf_C, %ebx
-	subl	%eax, %ebx
+	mov	opf_C, %ebx
+	sub	%eax, %ebx
 	movb	%bl, -1(%eax)
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 	ret
 
 opf_literal_code:
-	movl	%eax, %edi
+	mov	%eax, %edi
 	call	opf_number_plant_literal
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 	ret
 
 
 opf_string_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	movl	$'"', %eax
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	mov	$'"', %eax
+	sub	$opf_cell_size, %ebp
 	# vvvvv fall through vvvvv
 
 opf_parse_code:
-	movl	opf_H, %edi
-	movl	opf_I, %ebx
-	movl	%eax, %ecx
-	movl	%edi, -opf_cell_size(%ebp)
-	pushl	%edi
-	subl	$opf_cell_size, %ebp
+	mov	opf_H, %edi
+	mov	opf_I, %ebx
+	mov	%eax, %ecx
+	mov	%edi, -opf_cell_size(%ebp)
+	push	%edi
+	sub	$opf_cell_size, %ebp
 opf_parse_restart:
-	movl	opf_in_p(%ebx), %esi
+	mov	opf_in_p(%ebx), %esi
 opf_parse_next:
 	lodsb
 	stosb
@@ -1106,93 +1106,93 @@ opf_parse_next:
 	cmpb	%cl, %al
 	jne	opf_parse_next
 opf_parse_found:
-	movl	%esi, opf_in_p(%ebx)
+	mov	%esi, opf_in_p(%ebx)
 	movb	$0, -opf_char_size(%edi)
-	movl	%edi, opf_H
-	leal	-opf_char_size(%edi), %eax
-	popl	%ebx
-	subl	%ebx, %eax
+	mov	%edi, opf_H
+	lea	-opf_char_size(%edi), %eax
+	pop	%ebx
+	sub	%ebx, %eax
 	ret
 opf_parse_nl:
-	cmpl	%esi, opf_in_e(%ebx)
+	cmp	%esi, opf_in_e(%ebx)
 	jne	opf_parse_next
-	decl	%edi
-	pushl	%ecx
+	dec	%edi
+	push	%ecx
 	call	*opf_in_refill(%ebx)
-	popl	%ecx
-	testl	%edx, %edx
+	pop	%ecx
+	test	%edx, %edx
 	jg	opf_parse_restart
-	movl	$opf_error_eoi, %eax
+	mov	$opf_error_eoi, %eax
 	jmp	opf_abort
 
 
 opf_tick_code:
-	movl	%eax, -opf_cell_size(%ebp)
-	subl	$opf_cell_size, %ebp
+	mov	%eax, -opf_cell_size(%ebp)
+	sub	$opf_cell_size, %ebp
 	call	opf_in_wsw
-	testl	%ecx, %ecx
+	test	%ecx, %ecx
 	jle	opf_abort
 	call	opf_dict_find
-	movl	%edx, %eax
+	mov	%edx, %eax
 	ret
 
 
 opf_compile_code:
-	movl	%eax, %edx
-	movl	(%ebp), %eax
-	addl	$opf_cell_size, %ebp
+	mov	%eax, %edx
+	mov	(%ebp), %eax
+	add	$opf_cell_size, %ebp
 	jmp	*opf_h_comp(%edx)
 
 
 opf_trap_n_code:
-	movl	%eax, %edi
-	movl	(%ebp), %eax
-	cmpl	$3, %edi
+	mov	%eax, %edi
+	mov	(%ebp), %eax
+	cmp	$3, %edi
 	jg	opf_trap_n_code_on_stack
-	leal	opf_trap_0_code, %ebx
-	movl	%edi, %esi
-	negl	%esi
-	leal	(%ebx, %esi, 4), %ebx
+	lea	opf_trap_0_code, %ebx
+	mov	%edi, %esi
+	neg	%esi
+	lea	(%ebx, %esi, 4), %ebx
 	jmp	*%ebx
 opf_trap_n_code_on_stack:
-	leal	opf_cell_size(%ebp), %ebx
+	lea	opf_cell_size(%ebp), %ebx
 	jmp	opf_trap_0_code
 opf_trap_3_code:
-	movl	(3*opf_cell_size)(%ebp), %edx
+	mov	(3*opf_cell_size)(%ebp), %edx
 	nop
 opf_trap_2_code:
-	movl	(2*opf_cell_size)(%ebp), %ecx
+	mov	(2*opf_cell_size)(%ebp), %ecx
 	nop
 opf_trap_1_code:
-	movl	(1*opf_cell_size)(%ebp), %ebx
+	mov	(1*opf_cell_size)(%ebp), %ebx
 	nop
 opf_trap_0_code:
-	leal	opf_cell_size(%ebp, %edi, 4), %ebp
+	lea	opf_cell_size(%ebp, %edi, 4), %ebp
 	int	$opf_syscall
 	ret
 
 
 opf_anon_mmap:
-	xorl	%eax, %eax
-	pushl	%eax
-	pushl	%eax
-	pushl	$(opf_mmap_map_private|opf_mmap_map_anonymous)
-	pushl	$(opf_mmap_prot_read|opf_mmap_prot_write|opf_mmap_prot_exec)
-	pushl	opf_cell_size(%ecx)
-	pushl	%eax
-	movl	$opf_syscall_mmap, %eax
-	movl	%esp, %ebx
+	xor	%eax, %eax
+	push	%eax
+	push	%eax
+	push	$(opf_mmap_map_private|opf_mmap_map_anonymous)
+	push	$(opf_mmap_prot_read|opf_mmap_prot_write|opf_mmap_prot_exec)
+	push	opf_cell_size(%ecx)
+	push	%eax
+	mov	$opf_syscall_mmap, %eax
+	mov	%esp, %ebx
 	int	$opf_syscall
-	addl	$(6*4), %esp
-	cmpl	$0xfffff000, %eax
+	add	$(6*4), %esp
+	cmp	$0xfffff000, %eax
 	ja	opf_abort
-	movl	%eax, (%ecx)
+	mov	%eax, (%ecx)
 	ret
 
 opf_strlen_code:
-	movl	%eax, %esi
+	mov	%eax, %esi
 	call	opf_strlen
-	movl	%ecx, %eax
+	mov	%ecx, %eax
 	ret
 
 
