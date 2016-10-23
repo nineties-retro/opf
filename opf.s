@@ -1184,8 +1184,8 @@ opf_anon_mmap:
         movl    %esp, %ebx
         int     $opf_syscall
         addl    $(6*4), %esp
-        testl   %eax, %eax
-        jl      opf_abort
+        cmpl    $0xfffff000, %eax
+        ja      opf_abort
         movl    %eax, (%ecx)
         ret
 
