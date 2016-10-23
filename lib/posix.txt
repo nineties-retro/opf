@@ -98,3 +98,8 @@ OPF posix-unlink ( path -- n )
 C   int write(int fd, void * buff, size_t count)
 OPF posix-write ( count buff fd -- n )
 
+OPF posix-error? ( n -- n 0 | n 1 }
+  Checks whether n is in the POSIX error range (-4096 .. -1)
+  and if so leaves 1 on the stack otherwise leaves 0.
+  
+  

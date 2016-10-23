@@ -810,6 +810,9 @@ opf_compile_add_sub_adjust_q:
 opf_eq_code:
 	xor	(%ebp), %eax
 	not	%eax
+	je	opf_eq_code_end
+	xor	%eax, %eax
+opf_eq_code_end:
 	add	$opf_cell_size, %ebp
 	ret
 
@@ -848,7 +851,20 @@ opf_xor_code:
 opf_xor_code_end:
 	ret
 
+opf_char_store_code:
+	movb    (%ebp), %bl
+	movb    %bl, (%eax)
+	movl    opf_cell_size(%ebp), %eax
+	addl    $(2*opf_cell_size), %ebp
+	ret
 
+opf_char_fetch_code:
+	xorl    %ebx, %ebx
+	movb    (%eax), %bl
+	movl    %ebx, %eax
+opf_char_fetch_code_end:
+	ret
+	
 opf_store_code:
 	mov	(%ebp), %ebx
 	mov	%ebx, (%eax)
@@ -1297,10 +1313,25 @@ opf_string_head:
 	.long opf_string_code
 	.long opf_compile_call
 
+        .ascii "c!"
+opf_char_store_head:
+	.byte 2
+	.long opf_string_head
+	.long opf_char_store_code
+	.long opf_compile_call
+	
+	.ascii "c@"
+opf_char_fetch_head:
+	.byte 2
+	.long opf_char_store_head
+	.long opf_char_fetch_code
+	.long opf_compile_inline
+	.byte opf_char_fetch_code_end - opf_char_fetch_code
+	
 	.ascii "!"
 opf_store_head:
 	.byte 1
-	.long opf_string_head
+	.long opf_char_fetch_head
 	.long opf_store_code
 	.long opf_compile_call
 

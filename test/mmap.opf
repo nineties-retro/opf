@@ -1,18 +1,18 @@
 #< posix.opf
 #< std.opf
 
-: open { 0 posix-o-rdonly } " /dev/zero" { drop posix-open dup }
+: open { 0 posix-o-rdonly } " /dev/zero" ", { drop posix-open posix-error? }
        abort" could not open /dev/zero" ;
 : prot posix-prot-write posix-prot-read or #, ; 
 : flags posix-map-private #, ;
 : len 1000 #, ;
 : start 0 #, ;
 : fd open #, ;
-: off 0 # , ;
-: mmap { off fd flags prot len start posix-mmap dup } abort" mmap failed" ;
+: off 0 #, ;
+: mmap { off fd flags prot len start posix-mmap posix-error? } abort" mmap failed" ;
 : after ." phew, made it" { cr } ;
 : init if { 1 - swap 0a over c! char+ swap init } ; then { drop drop } ;
 : check-char { c@ 0A xor } abort" bad match!" ;
 : check if { 1 - swap dup check-char char+ swap check } ; then { drop drop } ;
-: main { mmap len dup dup init check after } ;
+: main { mmap dup len tuck init check after } ;
 main

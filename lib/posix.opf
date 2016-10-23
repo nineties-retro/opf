@@ -127,3 +127,5 @@
 : posix-s-iroth  004 #, ;
 : posix-s-iwoth  002 #, ;
 : posix-s-ixoth  001 #, ;
+
+: posix-error? { dup FFFFF000 tuck and = } ;
