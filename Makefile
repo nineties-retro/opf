@@ -1,8 +1,8 @@
 opf_roff= groff -Tascii -man
 opf_unformat=col -b
-opf_as_flags = $(ASFLAGS)
+opf_as_flags = --32 $(ASFLAGS)
 opf_as=as
-opf_ld=ld
+opf_ld=ld -melf_i386
 opf_ld_magic_flags=-N
 opf_rm=rm -f
 
