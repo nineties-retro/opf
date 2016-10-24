@@ -1,0 +1,1745 @@
+                             -*- Text -*-
+
+.asm.format: Due to a combination of only having GAS on my machine and
+ also being used to AT&T format assembler, OPF is written in AT&T format
+ rather than Intel format.
+
+.vm: The OPF virtual machine uses the following virtual registers :-
+
+.vm.P: the instruction pointer
+.vm.R: the address of the last item added to the return stack.
+.vm.S: the address of the next to last item added to the data stack.
+.vm.T: the last item added to the data stack.
+.vm.H: the address of next available byte in the header space.
+.vm.C: the address of next available byte in the code space.
+.vm.D: the address of the last word entered into the dictionary.
+.vm.B: the current base used for all numeric input/output.
+
+.vm.mapping: How these virtual registers are mapped to x86 registers
+ influences the speed and size of the VM and the resulting code.
+
+.vm.mapping.P: In a subroutine threaded implementation there is no choice
+ but to use eip for P.
+
+.vm.mapping.R: esp is the obvious choice for R since the call/ret
+ instructions implicitly push and pop values from it.  Using any other
+ register in a subroutine threaded forth would be perverse.
+
+.vm.mapping.S: The obvious choice would be esp since there
+ are special instructions for accessing esp as a stack.  However, esp
+ is being used as the return stack (see .vm.mapping.R).  Consequently,
+ ebp is used to hold S.  The choice of ebp was mainly govered by the
+ fact that it is often used as a frame pointer rather than a general
+ register in x86 code and so using for a second stack seems a
+ reasonable choice. 
+
+.vm.S.direction: Since the hardware stack (esp) grows downwards,
+ a downward growing stack is the most familiar direction on an x86.
+ Consequently S grows downwards.  Other than familiarity there is no reason
+ why the stack should not grow upwards, and there is a small technical
+ advantage to doing so when it comes to certain system calls (see
+ opf_trap_n_code). 
+
+.vm.S.top: There are two conventions about what S can point to.  It
+ can either point to the last item added to the stack or it can point
+ to the next free location on the stack.  In the absence of special
+ instructions which favour either one, then the choice of which to use
+ is arbitrary.  However, there is something to be said for using the
+ former in a stack which grows down (initialise S to one past the end
+ of the stack area) and the latter for stacks which grow up.  Since
+ the the choice of stack direction has been made (see .vm.S.direction)
+ then the former is used.
+
+.vm.S.access: Since there are no special instructions for accessing ebp,
+ a mov+sub are required to push a value onto the stack and a mov+add
+ to remove it.  Given the stack direction (see .vm.S.direction) and
+ what it points at (see .vm.S.top) then an obvious way to code a push
+ a value on the stack is :-
+
+  subl $4, %rbp
+  movl <whatever>, (%rbp)
+
+ However, this suffers from an address generation interlock (AGI) since
+ the move instruction has to wait for the sub instruction to generate the
+ correct value for ebp and so it causes an extra delay (see
+ opf/bib#pentium page F-7 for some more information on AGIs).  Consequently,
+ the code is reordered and use is made of a negative offset to push
+ the value on the stack.
+ 
+  movl <whatever>, -4(%rbp)
+  subl $4, %rbp
+
+ Note that accessing a hardware stack below its current value is a 
+ recipe for disaster since any value to place there could be overwritten
+ by an interrupt that occurs between the mov and sub but since the hardware
+ does not push anything on ebp, it is safe to use it in this manner.
+
+.vm.mapping.T: In many cases the code sequence to perform an
+ operation on eax is shorter than for any other register and so eax
+ makes an attractive choice for T.
+
+.vm.mapping.{H,C,D,B}: Given the lack of registers on the x86 none of
+ these virtual registers is kept in an x86 register.  Instead they are
+ each kept in a variable: opf_H, opf_C, opf_D and opf_B respectively.
+
+
+XXX the rest of this document refers to the code in opf.s
+
+opf_C_default_size
+ what:
+  The maximum size, in bytes, of the area for holding all code that is
+  generated when OPF words are compiled.  The size can be overridden
+  on the command line using -c, see _start for more information.
+
+opf_H_default_size
+ what:
+  The maximum size, in bytes, of the area for holding the headers of any
+  OPF words that are compiled.  The size can be overriden on the command
+  line using the -h option, see _start for more information.
+
+opf_S_default_size
+ what:
+  The maximum size, in bytes, of the area containing the parameter stack.
+  The size can be overriden on the command line using the -s option,
+  see _start for more information.
+
+
+opf_Q_size
+ what:
+  The maximum number of elements that can appear in the code optimisation
+  queue.  To simplify the code it must be a power of 2.  Note that if
+  you change this, you'll also need to alter the definition of opf_Q.
+
+
+opf_in_fd_block_size
+ what:
+  The size, in bytes, of the input buffer associated with each opf_in.
+  The same size is used for all input buffers.  There is currently no
+  way to override the size on the command line -- XXX add this feature.
+
+
+opf_cell_size
+ what:
+  The size of a cell in bytes.  This is defined by the architecture and
+  in the case of an x86 it is 4.
+
+
+opf_char_size
+ what:
+  The size of a character in bytes.  OPF only supports ASCII, so the size
+  is 1.
+
+opf_bits_per_char
+ what:
+  The number of bits in one character.  OPF only supports ASCII, so don't
+  alter this unless you are involved in a rewrite.
+
+opf_pad_size
+ what:
+  The size, in bytes, of the area used to temporarily hold characters that
+  are output by opf_dot_code.  It should be large enough to hold the
+  maximum integer in base 2.  There is currently no way to override the
+  size on the command line, and it is unlikely that it will be added since
+  the upper bound is not very big and so it makes sense just to use the
+  maximum size.
+
+
+opf_syscall
+ what:
+  The interrupt code for a system call under Linux.  This is fixed by
+  the Linux kernel, so do not alter it.  The same is true for all the
+  following opf_syscall_XXX values, their values are taken from 
+  /usr/include/sys/syscall.h :-
+
+opf_syscall_exit
+opf_syscall_read
+opf_syscall_write
+opf_syscall_open
+opf_syscall_close
+opf_syscall_mmap
+
+opf_exit_success
+ what:
+  When passed as an argument to the exit system call, the process terminates
+  and returns a successful status.
+
+opf_exit_failure
+ what:
+  When passed as an argument to the exit system call, the process terminates
+  and returns a failure status.
+
+opf_mmap_prot_none
+opf_mmap_prot_read
+opf_mmap_prot_write
+opf_mmap_prot_exec
+ what:
+  The various protections that can be applied to a mmapped page.
+  Their numeric values are taken from /usr/include/asm/mman.h
+  See mmap(2) for more information.
+
+opf_mmap_map_shared
+opf_mmap_map_private
+opf_mmap_map_fixed
+opf_mmap_map_anonymous
+  The various flags that can be applied when mapping a page.
+  Their numeric values are taken from /usr/include/asm/mman.h
+  See mmap(2) for more information.
+
+
+opf_stdin
+opf_stdout
+opf_stderr
+ what:
+  The three standard file descriptors that are opened for a process: 
+  input, output and error output.
+
+
+opf_h
+ what:
+  A word header contains five pieces of information: the name of the
+  word, the length of the name (opf_h_len), a link to the next word in
+  the dictionary (opf_h_next) aka the link field address or LFA, a
+  pointer to the code associated with the word (opf_h_code) aka the
+  code field address or CFA and a pointer to the compiler for the word
+  (opf_h_comp).  
+
+  Note that the name does not actually have an offset, that is because
+  the name is actually stored before the header, a header pointer
+  actually contains the address of length field.  The start of the name
+  can be determined by subtracting the length from this.  For example, 
+  the following bit of ASCII art shows two words in the dictionary, "foo"
+  and "to".
+                           _
+                          ---
+                           |
+     0               4     |         8              12              
+   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+   | f | o | o | 3 |       0       | foo code addr | foo compiler  |
+   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+                 ^
+                 |
+                 +-----+
+    16              20 |            24              28  
+   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+   | t | o | 2 |       4       | to code addr  |  to compiler  |
+   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+               ^
+               |
+              top
+
+  Since headers a kept separate and have a relatively small size, the
+  link to the next word could be represented by a byte-offset rather
+  than a full word.  However, this can make dealing with overflow of the
+  header area more complicated.  With a word for the link, all that is
+  necessary is to allocate a new block and make the first word in it
+  point back to the previous block.  With a byte offset I can only think
+  of two solutions: adding a bit somewhere in the header to indicate whether
+  it is a default or extended header or mmapping a large block,
+  copying the initial headers into it and allocating a page every time
+  overflow occurs.  There is not much to be said for the former
+  approach since it complicates the common case at the expense of the
+  uncommon.  The second approach has a lot going for it, especially
+  since it would be easy to map say 1MB of linear address space and be
+  confident that even the largest applications would not need it all.
+  This is something to look at once the word based version works.
+
+  Allowing a separate compiler for each word makes it easy to install
+  custom compilers that inline or otherwise much about with the object
+  code that is planted for a word.  It is not strictly necessary but it
+  does make adding extensions easier.
+
+
+opf_opcode_addl_eax
+ what:
+  The opcode for a <code>addl $nnnn, %rax</code> instruction where
+  <code>nnnn</code> is a 32-bit value.
+
+
+opf_opcode_addl_eax_short
+ what:
+  The opcode for a <code>addl $nn, %rax</code> instruction where
+  <code>nn</code> is a 8-bit value.
+
+
+opf_opcode_call
+ what:
+  The code for a call instruction.  See page 25-50 of opf/bib#pentium.
+
+
+opf_opcode_decl_eax
+ what:
+  The opcode for a <code>decl %rax</code> instruction.
+
+
+opf_opcode_incl_eax
+ what:
+  The opcode for an <code>incl %rax</code> instruction.
+
+
+opf_opcode_jmp
+ what:
+  The code for a relative jump instruction.  See page 25-193 of opf/bib#pentium
+
+
+opf_opcode_ret
+ what:
+  The code for a return instruction.  See page 25-271 of opf/bib#pentium
+
+
+opf_opcode_subl_eax
+ what:
+  The opcode for a <code>subl $nnnn, %rax</code> instruction where
+  <code>nnnn</code> is a 32-bit value.
+
+
+opf_opcode_subl_eax_short
+ what:
+  The opcode for a <code>subl $nn, %rax</code> instruction where
+  <code>nn</code> is a 8-bit value.
+
+
+opf_call_size
+ what:
+  The number of bytes that a <code>call</code> and the associated offset
+  take up.
+
+
+opf_add_sub_one
+ what:
+  The offset of the opcode of the instruction that will
+  decrement/increment %rax by one. 
+
+opf_add_sub_short
+ what:
+  The offset of the opcode of instruction that will add/subtract an 8-bit
+  value to %rax.
+
+opf_add_sub_long
+ what:
+  The offset of the opcode of instruction that will add/subtract a 32-bit
+  value to %rax.
+
+opf_add_sub_short_delta
+ what:
+  The offset in bytes from the start of the add/sub short instruction 
+  (see opf_opcode_addl_eax_short and opf_opcode_subl_eax_short) of
+  of the location of the byte that holds the value to add/subtract.
+
+
+opf_add_sub_short_size
+ what:
+  The length of an add/sub short instruction including the 8-bit value.
+
+
+opf_add_sub_long_size
+ what:
+  The length of an add/sub long instruction including the 32-bit value.
+
+opf_lif_cond_code_addr
+ what:
+  The offset in bytes of the code address in an opf_lif_cond_table entry.
+
+opf_lif_cond_opcode
+ what:
+  The offset in bytes of the opcode in an opf_lif_cond_table entry.
+
+opf_lif_cond__size
+ what:
+  The size in bytes of an opf_lif_cond_table entry.
+
+
+opf_in
+ XXX: document this.
+
+opf_q_head
+opf_q_code
+opf_q__size
+opf_q_mask
+
+opf_q_head_drop_lit
+opf_q_head_lit
+opf_q_head_max
+ what:
+  The boundary between special head values (below this value) and the
+  addresses of real headers (above this value).  This is set to the
+  address of the start of the text region since headers since the way
+  the Linux x86 memory management works ensures that all mmapped regions
+  are above this address.
+
+opf_error_eoi XXX document this
+opf_error_bad_word XXX document this
+
+
+opf_argc
+opf_argv
+ what:
+  argc and argv are equivalent to the two arguments to main in C.
+
+
+opf_B
+ what:
+  The current base for all numeric input and output.  It should lie
+  in the range [2,36].  Outside that and the results are
+  <code>undefined</code>.
+
+opf_C:
+ what:
+  Holds the address of the start of the code area.
+
+opf_C_size
+ what:
+  Holds the size, in bytes, of the code area.  This is only currently
+  used during command line parsing.
+
+opf_H:
+ what:
+  Holds the address of the start of the header area.
+
+opf_H_size
+ what:
+  Holds the size, in bytes, of the header area.  This is only currently
+  used during command line parsing.
+
+
+opf_S:
+ what:
+  Holds the address of the start of the parameter stack area.
+
+opf_S_size
+ what:
+  Holds the size, in bytes, of the parameter stack area.  This is only
+  currently used during command line parsing.
+
+
+opf_D
+ what:
+  Holds the address of the last word defined in the dictionary.  Note that
+  unlike most Forth implementations, if a word is currently being defined
+  then its header will be in opf_D.
+
+opf_I
+ what:
+  Holds the address of the current input stream.
+
+
+opf_X
+ what:
+  Contains the address of the compiler to associate with any definition.
+  This has been included because at the outset of implementing
+  something like the Color Forth idea of defining up front what sort
+  of words are coming.  At present it is underused since there is only
+  one sort of definition.  When variables are added it make some sense,
+  as will it if constants are made a special case.
+
+
+opf_L
+ what:
+  Contains the address of a 0 terminated vector of addresses of strings
+  that represent libraries to search when opening a OPF file.  Note
+  that the vector is stored in monotonically *decreasing* addresses
+  rather than the usual *increasing* addresses.
+ how:
+  The reason for *decreasing* addresses is that the vector is stored on
+  the return stack.  The reason for using the return stack is that at
+  the time that the command line options are parsed, the return stack
+  is the only area that has been allocated.
+
+
+opf_Q
+ what:
+  The base of the code optimisation queue.  Each element in the queue
+  consists of a pair of words: the address of the word header and the
+  start address of where in the current word the code was planted.
+ how:
+  Instead of using .space to initialise the queue, explicit .longs have
+  been used.  This is because the last slot needs to be initialised with
+  the address of some code (any code not starting with a call will do)
+  so that opf_return_code does not blow up when a check is made to see
+  if the code at that address starts with a call.  This could be done
+  independently of the size, by using a couple of loads and a store at
+  initialisation time, but I'm loathe to waste this space when it is
+  unlikely that the queue will be anything other than 4 long (even 4
+  is on the large side!).
+
+
+opf_Qi
+ what:
+  Holds the index of last slot to be used in the code optimisation queue.
+  The reason for holding the last slot rather than the next free slot
+  is that it simplifies accessing the last used slot i.e. no
+  calculation is required.  Note that the index is stored pre-scaled.
+
+
+opf_defined_vector
+ inputs:
+  %rcx = length of the name of the word just found.
+  %rdx = dictionary header of found word.
+  %rdi = address of first character in word name (note this is the one
+         that has just been read in, not the one in the just located header).
+  %rsi = address of one past the last character in the name in the
+         dictionary header.
+ outputs:
+  whatever the word wants to do.
+ what:
+  Execution is vectored through here every time a word is encountered
+  by the text interpreter.  It usually contains either opf_defined_interpret
+  or opf_defined_compile but users are free to alter it if they wish to
+  alter the way the text interpreter works.
+
+
+opf_undefined_vector
+ inputs:
+  %rcx = length of the name of the word that was not found in dictionary.
+  %rdx = 0
+  %rsi = address of first character in word name (note this is the one
+         that has just been read in, not the one in the just located header).
+ outputs:
+  whatever the word wants to do.
+ what:
+  Execution is vectored through this when the text interpreter does not
+  find a word in the dictionary.  This is usually bound to either
+  opf_number_interpret or opf_number_compile but users are free to bind
+  it to other words in order to extend/alter the text interpreter.
+
+
+opf_number_vector
+ inputs:
+   see opf_undefined_vector
+ outputs:
+   %rcx' = 0 if %rsi is a valid number, non-zero otherwise.
+   %rdi' = the converted number.
+   %rsi' = %rsi + %rcx + 1
+   %rbx' = opf_B
+ what:
+  Execution is vectored through this when the text interpreter wants
+  to convert the string representation of a number into the number.
+  The default action is to treat the string as representing an unsigned
+  integer.
+
+
+opf_not_number_vector
+ inputs:
+  see opf_undefined_vector
+ outputs:
+   whatever the vector wants to do.
+ what:
+  Execution is vectored through this if opf_number_vector fails to
+  convert the string into a number.  The default action is to output
+  the word followed by a " ?\n" and then vector execution via
+  opf_abort_vector.
+
+
+opf_abort_vector
+ inputs:
+  %rax = code indicating the nature of the problem.
+ outputs:
+  -
+ what:
+  Execution is vectored through this when things go wrong.
+  Unfortunately, not all code that vectors through opf_abort_vector set
+  %rax correctly, so sometimes it contains some random value :-<
+
+
+opf_vector_swap_cache
+ what:
+  See opf_swap_state_code.
+
+
+opf_word_fail_msg
+ what:
+  This is the string that is output after a word is encountered by the
+  text interpreter that it cannot find a definition for or otherwise
+  process.  See opf_bad_word_abort for more information.
+
+_start
+ inputs:
+  *%esp = number of arguments to this process.
+  %esp+4 = address of argv vector.
+ what:
+  This is where execution begins.  First the command line is parsed.
+  See the associated manual page for the options.
+ how:
+  Any library directories to search are stored on the return stack.  Since
+  they must be searched in the order they are given and the stack grows
+  down opf_L is initialised with the address of a stack slot
+  containing 0.  See opf_cmd_line_lib for more information.
+
+
+opf_cmd_line_base
+ inputs:
+  %rsi = address of the first character in the command line option.
+ outputs:
+  opf_B
+ what:
+  If the option (as pointed to by %rsi) is '-b' then the rest of the
+  option is assumed to be a string representing the integer base which
+  the rest of the computation should be performed in.  If the conversion
+  is successful then opf_B is set to the new base then the next option
+  is parsed otherwise an error is reported.
+
+
+opf_cmd_line_code_size
+ inputs:
+  %rsi = address of the first character in the command line option.
+ outputs:
+  opf_C_size
+ what:
+  If the option (as pointed to by %rsi) is '-c' then the rest of the
+  option is assumed to be a string representing an integer which is
+  the number of of bytes to allocate for the code space.  If the conversion
+  is successful then opf_C_size is set to the integer then the next option
+  is parsed otherwise an error is reported.
+
+
+opf_cmd_line_header_size
+ inputs:
+  %rsi = address of the first character in the command line option.
+ outputs:
+  opf_C_size
+ what:
+  If the option (as pointed to by %rsi) is '-h' then the rest of the
+  option is assumed to be a string representing an integer which is
+  the number of of bytes to allocate for the header space.  If the conversion
+  is successful then opf_H_size is set to the integer then the next option
+  is parsed otherwise an error is reported.
+
+
+opf_cmd_line_param_size
+ inputs:
+  %rsi = address of the first character in the command line option.
+ outputs:
+  opf_C_size
+ what:
+  If the option (as pointed to by %rsi) is '-p' then the rest of the
+  option is assumed to be a string representing an integer which is
+  the number of of bytes to allocate for the parameter stack space.
+  If the conversion is successful then opf_P_size is set to the integer
+  then the next option is parsed otherwise an error is reported.
+
+
+opf_cmd_line_lib
+ inputs:
+  %rsi = address of the first character in the command line option.
+  *%esp = 0
+ outputs:
+  %esp' = %esp - 4
+  *%esp = %rsi+2
+ what:
+  If the option (as pointed to by %rsi) is '-l' then the rest of the
+  option is assumed to be a directory name and it is added to the list of
+  directories to search when looking for a file.  If the option is not
+  '-l' then execution continues with opf_cmd_line_end.
+ how:
+  The '-' part has already been checked and so it suffices to check if
+  the next character is 'l'.  If it is then the start of the directory
+  pathname (%rsi+2) replaces the terminating 0 on the return stack and
+  a new terminator is pushed onto the stack.
+
+
+opf_cmd_line_end
+ inputs:
+  %rsi = address of the first character in the command line option.
+ what:
+  If the option (as pointed to by %rsi) is '--' then this terminates the
+  command line processing and opf_cmd_line_input_from_stdin.
+ how:
+  To make sure that garbage such as '--foo' is not accepted, a check
+  for a NUL is done.  To avoid two tests, a word compare is used.
+
+
+opf_cmd_line_input_from_stdin
+ inputs:
+  -
+ outputs:
+  -
+ what:
+  Initialises the parameter stack, code and header sections and then
+  reads OPF from the standard input.  On completion, OPF is exited returning
+  opf_exit_success to the parent process.
+
+
+opf_cmd_line_input_from_file
+ inputs:
+  %rsi = address of start of file-name to read OPF from.
+ outputs:
+  -
+ what:
+  Adjusts the command line arguments so that, in accordance with usual
+  scripting behaviour, the file name becomes the zeroth argument.  Then
+  opens the file whose name is in %rbx and parses it as OPF.  On completion
+  the file is closed and OPF is exited returning opf_exit_success to
+  the parent process.
+
+
+opf_exit:
+ inputs:
+  -
+ outputs:
+  -
+ what:
+  Terminates the process returning opf_exit_success to the parent process.
+
+
+opf_cmd_line_parse_int
+ inputs:
+  %rdx = address of location to store the converted integer in.
+  %rsi = address of first character in option to convert to an integer.
+         The integer should start at %rsi+2.
+ outputs:
+  %rdx' = %rdx
+  %rcx' = 0
+  %rsi' = %rsi
+  %rdi = converted number.
+ what:
+  Converts the string pointed to by %rsi into an integer.  If successful,
+  continues processing at opf_cmd_line_next i.e. the routine technically
+  does not return, in an attempt to save a byte or two it jumps directly
+  back into the command line interpreter.  If the string does not represent
+  an integer, then execution proceeds to opf_bad_word_abort so that the
+  faulty integer is output before execution is vectored through 
+  opf_abort_vector.
+
+  A routine like this that does not return is a classic example of why
+  assembler can turn into an unmaintainable mess.  
+
+
+opf_cmd_line_setup_args
+ inputs:
+  -
+ outputs:
+  %rbp' = address + 4 of the newly allocated parameter stack section.
+ what:
+  Allocates memory for the code section (opf_C), header section
+  (opf_H), and parameter stack (opf_P) before initialising %rbp to point
+  at the end of the parameter stack section.
+
+
+opf_text_interpreter
+ inputs:
+  -
+ trashes:
+  all registers.
+ outputs:
+  it does not return until EOI or there is an error reading a word.
+ what:
+  The text interpreter.  This attempts to read a word from the
+  current input and if successful looks the word up.  If the word is
+  defined then execution is vectored through opf_defined_vector
+  otherwise it goes through opf_undefined_vector.  Assuming either returns
+  (which they might not if some error occurs), then the process is repeated.
+  Notice that the text interpreter does not directly perform any interpretation
+  or execution, this is handled entirely by the contents of the two vectors.
+  This approach makes it possible to extend the interpreter in various ways.
+  This is clearly a nice feature but it is not clear whether it is necessary,
+  there is always the option of just writing a separate text interpreter.
+ how:
+  The choice of which vector to use is achieved without an explicit test in
+  opf_text_interpreter via a fragile hack: the two vectors are next to each
+  other (defined first) and by pre-loading %rbx with the address of
+  opf_defined_vector, opf_dict_find adjusts %rbx if it cannot find the word.
+  Hence a direct call to (%rbx) will result in execution vectoring via the
+  correct vector.
+ 
+
+opf_defined_interpret
+ inputs:
+  see opf_defined_vector.
+ outputs:
+  -
+ what: 
+  Executes the code associated with the word whose header is in %rdx.
+
+
+opf_defined_compile
+ inputs:
+  see opf_defined_vector.
+ outputs:
+  -
+ what:
+  Executes the compiler associated with the word whose header is in %rdx.
+
+
+opf_number_convert
+ inputs:
+  see opf_undefined_vector.
+ outputs:
+  %rcx' = %rcx
+  %rsi' = %rsi  
+  %rdi' = /* converted number */
+ what:
+  Converts the string into a number.  If the string cannot be converted
+  then execution is vectored through opf_not_number_vector.
+
+
+opf_bad_word_abort
+ inputs:
+  %rcx = length of string to output
+  %rsi = address of first character of string to output
+ outputs:
+  %rax' = opf_error_bad_word
+  %rbx' = opf_stderr
+  %rcx' = opf_word_fail_msg
+  %rdx' = 3
+  %rsi' = %rsi
+ what:
+  Writes out the string represented by %rcx and %rsi followed by a '?'
+  to the standard output and then vectors execution via opf_abort_vector.
+ 
+
+opf_number_interpret
+ inputs:
+  see opf_undefined_vector.
+ outputs:
+  %rcx' = 0
+  %rbp  = %rbp'-4 
+  *ebp' = %rax 
+  %rax  = /* the number */
+ what:
+  Converts string pointed to by %rsi into a number using opf_number_vector
+  and pushes the result on the parameter stack.  If it not possible to
+  convert the string to a number then execution is vectored via 
+  opf_abort_vector.
+
+
+opf_number_compile
+ inputs:
+  see opf_undefined_vector.
+ outputs:
+  %rbx' = opf_C + 11
+  %rcx' = opf_end_def_code_standard
+  %rdx' = opf_end_def_head
+  %rdi' = %rdi
+  opf_C' = opf_C + 11
+ what:
+  Convert the string in %rsi into a number (see opf_number_convert) and
+  if that is successful, plant some code to push the number on the stack.
+  (see opf_number_plant_literal).
+
+
+opf_number_plant_literal
+ inputs:
+  %rdi = number to plant
+ outputs:
+  %rbx' = *opf_C + 11
+  %rdx' = opf_q_head_lit
+  %rdi' = *opf_C
+  *opf_C' = %rbx'
+ what:
+  Takes the integer in %rdi and extends the current word such that when
+  the word is executed it will push the value of %rdi onto S.  Also
+  adds an entry into the compilation queue.
+ how:
+  As default for a given literal XXXXXXXXXXXXXXXX the following code is
+  planted at opf_C :- 
+
+    48 89 45 F8				mov	%rax, -okf_cell_size(%rbp)
+    48 B8 XX XX XX XX XX XX XX XX	movabs	$XXXXXXXXXXXXXXXX, %rax
+    48 83 ED 08				sub	$okf_cell_size, %rbp
+ 
+  This is used rather than planting a call to a <code>(lit)</code> function
+  followed by the integer since that would take Y bytes which is only
+  Z less than the above sequence and is considerably slower.
+
+  If the preceeding word to be compiled was a <code>drop</code> then instead
+  of planting all of the above, only the following is planted over where
+  the drop code was originaly planted :-
+
+    48 B8 XX XX XX XX XX XX XX XX	movabs	$XXXXXXXXXXXXXXXX, %rax
+
+  In either case the entry in the compilation queue has a valid
+  opf_q_code slot but the fact this is a literal is marked by having
+  either opf_q_head_lit or opf_q_head_drop_lit in the 
+  opf_q_head slot rather than a legal dictionary header.
+
+
+
+opf_compile_call
+ inputs:
+  see opf_defined_vector
+ outputs:
+  %rbx' = opf_h_code(%rdx) - (*opf_C+opf_call_size)
+  %rdx' = %rdx
+  %rdi' = *opf_C + opf_call_size
+  *opf_C' = %rdi'
+ what:
+  Plants a call to the code of the word whose dictionary header is in
+  %rdx and updates opf_C by opf_call_size.
+ how:
+  The jiggery-pokery that goes on is because calls are relative and
+  must be calculated from the first byte after the call instruction
+  itself i.e. call 0 would result in the next instruction being called.
+ 
+
+opf_compile_inline
+ inputs:
+  see opf_defined_vector
+ outputs:
+  %rcx = 0
+  %rdx' = %rdx
+  %rdi' = opf_C'
+  %rsi' = unspecified
+  opf_C' = opf_C + /* size of code for word in pointed to be %rdx */
+ what:
+  Inlines the word whose header is pointed to by %rdx.
+ how:
+  A <code>rep</code> and <code>movsb</code> are because they take much
+  less space than an explicit loop.
+
+
+opf_Q_add
+ inputs:
+  %rdx = address of header of word being compiled.
+  %rdi = address in current word where code will be planted.
+  opf_Qi 
+ outputs:
+  %rdx' = %rdx
+  %rcx' = opf_Q
+  %rdi' = %rdi
+  %rsi' = opf_Qi' + 8
+  %opf_Qi' = %rsi'
+ what:
+  Adds the %rdx/%rdi pair to the code optimisation queue, wrapping around
+  if necessary.
+
+
+opf_abort
+ inputs:
+  see opf_abort_vector
+ outputs:
+  see opf_abort_vector
+ what:
+  Vectors execution via opf_abort_vector.  This is just here to avoid
+  reduce the size of the code since various places want to vector via
+  opf_abort_vector.
+
+
+opf_abort_default
+ inputs:
+  see opf_abort_vector
+ what:
+  Terminates the process with a non-zero value.
+
+
+opf_in_wsw
+ inputs:
+  opf_H
+  opf_I
+ outputs:
+  %rcx' = > 0 - length of word
+          = 0 - end of input
+          < 0 - error 
+  %rbx' = %rbx
+  %rsi' = address of first char in word
+  %rdi' = address of last char in word + 1
+  %rdx' = unspecified
+  opf_I' = opf_I
+  opf_H' = opf_H
+ what:
+  Read a whitespace delimited word from the current input (opf_I) and
+  store the resulting string starting at opf_H.  %rdx indicates whether
+  the word was read successfully (greater than 0) or not (less than or
+  equal to 0).
+
+
+opf_in_fd_refill
+ input:
+  %rbx - input file descriptor
+ output:
+  %rbx = %rbx'
+  %rcx = address of one past last character read in.
+  %rdx = > 0 - nchars read
+         = 0 - end of input
+         < 0 - error 
+ what:
+  Refill the input buffer from a file descriptor.
+  Note this should not be called directly, it should be placed in
+  the opf_in_refill slot of a input buffer attached to a file descriptor.
+
+
+opf_in_skip
+ input:
+  %cl  - char to skip to.
+ output:
+  %rbx' = %rbx
+  %cl' = %cl
+  %rsi' = unspecified
+  %rdx = > 0 - nchars read
+         = 0 - end of input
+         < 0 - error 
+ what:
+  Skip all the input chars up to an including the given character.
+  If the end of the input or an error reading more input occurs before
+  the character is found then %rdx will be less than or equal to zero.
+ how:
+  \n is used as a buffer sentinel and it is also one of
+  the most common characters to search for.  This slightly complicates
+  the terminating condition.   Once a \n has been found and it has been
+  determined that this is not the end of the buffer the obvious thing
+  to do might be to read the next character (opf_in_skip_next).  However,
+  this is not correct, the next thing should be to check whether the
+  character being searched for has been found (opf_in_skip_check_char).
+
+
+opf_atou
+ inputs:
+  %rcx = length of string to convert (if not NUL terminated).
+  %rsi = start of string.
+  opf_B = base to convert string by.
+ outputs:
+  %rcx' = 0 if string is a number
+  %rdi' = number
+  %rbx' = opf_B
+  opf_base' = opf_B
+  %rsi' = %rsi + %rcx + 1
+ what:
+  Converts the string starting at %rsi into an unsigned number.  If the
+  conversion is successful, %rcx' is 0 and %rdi' contains the number.
+  If the conversion fails, then %rcx' contains a non-zero value and the
+  contents of %rdi' are unspecified.
+ 
+
+opf_dict_find
+ inputs:
+  %rcx = length of string to search for.
+  %rsi = start of string to search for.
+  %rbx = unspecified.
+ outputs:
+  (and
+    (= %rcx %rcx')
+    (or
+      (and %rdx' (= %rbx' %rbx) (= %rdi' %rsi) (= %rsi' (+ %rsi %rcx)))
+      (and (= %rdx' 0) (= %rbx' (+ %rbx 4)) (= %rdi' opf_H) (= %rsi' %rsi))))
+ what:
+  Locate a string in the dictionary.
+
+  Note that whilst the input length is 32-bit, only 8-bits (%cl) are
+  actually taken notice of.
+
+  A non-zero %rdx' is the address of header of found word 
+  (i.e. address of name length in the header).
+
+  Does the apparently peculiar thing of adding 4 to %rbx if a matching
+  entry is found.  This is used to optimize the main loop by avoiding
+  another test and jump, see the code for opf_text_interpreter for more
+  information.
+
+
+opf_in_word_code
+ what:
+  Reads in a whitespace delimited word from the input (opf_I) into 
+  the space pointed to by opf_H and if successfully read pushes the address
+  of the start of the string (which is still the same as opf_H) and the
+  length of the string onto the parameter stack.
+
+
+opf_vars_code
+ inputs:
+  %rax = number of the variable to access (starting at 0).
+ outputs:
+  %rax' = address of the nth internal variable.
+  %rbx' = address of the 1st internal variable.
+ what:
+  Provides access to the internal variables of OPF.  Returns the address
+  of the nth variable in %rax.
+
+opf_debug_break
+ what:
+  Provides a mechanism for breakpointing OPF while it is executing a script.
+  Set a breakpoint on it and place any word bound to this in your code and
+  hey-presto you have a breakpoint at the required part of your script.
+  If you know you aren't going to access 15 in the code, then the
+  following will cause a breakpoint to be fired :-
+
+   b opf_debug_break
+   condition 1 ($eax == 15)
+
+
+opf_line_comment_code
+ what:
+  Skip everything up to and including next <code>\n</code> in the input.
+  When bound to <code>#!</code> it makes it possible for OPF scripts to
+  be executed directly under UNIX.  For example, if OPF is installed
+  as <code>/usr/local/bin/opf</code>, you can create an shell with POSIX
+  features like :-
+
+   $ cat posix-forth
+   #! /usr/local/bin/opf
+   #< /usr/local/lib/opf/posix.opf
+   0 #{
+
+  and when you type posix-forth it will create an interactive OPF shell
+  with added posix features.
+
+
+opf_dict_store_word_code
+ what:
+  Pops the top of the stack and stores it at the address contained in opf_C.
+
+
+opf_input_from_fd_code
+ what:
+  As per opf_input_from_fd, except that %rbx is cleared since there
+  is no file.
+
+
+opf_input_from_fd
+ inputs:
+  %rax = file descriptor to read from
+  %rbx = input file name
+ outputs:
+  %rax' = %rax
+  everything else is unspecified.
+ what:
+  Creates a new opf_in_fd structure on the return stack and initialises
+  it with the file descriptor (%rax), file-name (%rbx), refill function
+  (opf_in_fd_refill), and input buffer (also allocated on the return stack).
+  After making this the default input (opf_I), calls the text interpreter 
+  (opf_text_interpreter) to evaluate the input.  If successful, the
+  opf_in_fd structure is removed and input is restored to the previous 
+  opf_in structure.
+
+
+opf_input_from_file_code
+ inputs:
+  -
+ outputs:
+  see opf_boot_from_file.
+ what:
+  Reads a whitespace terminated string from the current input (opf_I),
+  NUL terminates it and then uses opf_boot_from_file to open, evaluate
+  and then close the file.
+
+
+opf_boot_from_file
+ inputs:
+  %rbx = address of string containing name of file to read from.
+ outputs:
+  %rax' = %rax
+  %rbx' = file descriptor that was attached to the file while it was
+          being read -- it is closed.
+  %rcx' = unspecified
+  %rsi' = unspecified
+  %rdi' = unspecified
+ what:
+  Opens the file whose name is pointed to by %rbx, evaluates its
+  contents as OPF and closes the file (any problems closing the file
+  are ignored).  If the file cannot be opened then XXX.
+
+  If the file name is not absolute (i.e. begins with '/') then it is
+  searched for along the library path (what opf_L points at).
+ how:
+  Open the file as O_RDONLY (which is 0, hence the clearing of %rcx) and
+  use opf_input_from_fd to read in file file.  Internally
+  opf_input_from_fd uses <code>read(2)</code> to read in the source, but an
+  alternative would be to use <code>mmap(2)</code> to map in the whole file.
+  This is not done for two reasons.  The main reason is space.  The
+  <code>read(2)</code> versions is needed to support reading from the
+  standard input and so using a separate <code>mmap</code> would take
+  up more space.  The second reason is that that experiments done with
+  Linux 2.0.13 on my little 486 portable don't show any speed
+  improvement through using mmap and so there is no benefit to using
+  it.   Note the same experiments under on a SPARC under SunOS and
+  Solaris do show a performance increase and so <code>mmap(2)</code>
+  would be worth considering on those platforms.  Also on these platforms
+  <code>madvise(2)</code> is available and can be used to indicate that
+  the file will be accessed sequentially and so only one or two pages are
+  allocated rather than wasting VM on the whole file.
+
+
+opf_boot_from_file_not_found
+ inputs:
+  %rbx = address of first character in NUL terminated file name.
+  *(%esp+0) = %rbx
+  *(%esp+1) = saved value of %rax
+ outputs:
+  -
+ what:
+  Outputs the file name to the standard error stream followed by a '?'
+  and then vectors execution through opf_abort_vector.
+  
+
+opf_strcpy
+ inputs:
+  %rsi = address of first character in string to copy.
+  %rdi = address to copy to.
+ outputs:
+  %rsi' = %rsi + length of string
+  %rdi' = %rdi + length of string
+ what:
+  Copies the NUL terminated string at %rsi to %rdi.
+ how:
+  Since I don't have opf/bib#pentium around I can't remember what the
+  precise sequence using a rep is.  Therefore, coded it as an explicit
+  loop.
+
+
+opf_strlen
+ inputs:
+  %rsi = address of first character in NUL terminated string.
+ outputs:
+  %rsi' = %rsi + %rcx'
+  %rcx' = length of string.
+ what:
+  Counts the length of the NUL terminated string at %rsi.
+ how:
+  Since I don't have opf/bib#pentium around I can't remember what the
+  precise sequence using a rep is.  Therefore, coded it as an explicit
+  loop.
+
+
+opf_double_code
+ inputs:
+  %rax = number to double
+ outputs:
+  %rax' = 2*%rax
+ what:
+  Multplies %rax by 2.
+ how:
+  Uses a left shift.
+
+
+opf_halve_code
+ inputs:
+  %rax = number to halve
+ outputs:
+  %rax' = %rax/2
+ what:
+  Divides %rax by 2.
+ how:
+  Uses a right shift.  This is really an unsigned divide, it does not
+  preserve the sign bit.  Will alter when I get my hands on opf/bib#pentium 
+  again.
+
+
+opf_dup_code
+ inputs:
+  %rax = value to duplicate
+ outputs:
+  %rax' = %rax
+  *%rbp' = %rax
+  %rbp' = %rbp - 4
+ what:
+  Creates a copy of %rax on the top of the stack.
+
+
+opf_drop_code XXX
+opf_over_code XXX
+opf_nip_code XXX
+opf_tuck_code XXX
+opf_swap_code XXX
+opf_push_code XXX
+opf_pop_code XXX
+opf_sum_code XXX
+opf_sub_code XXX
+
+
+opf_compile_add_sub
+ inputs:
+  %rdx = dictionary header of either <code>+</code> or </code>-</code>.
+ outputs:
+  -
+ what:
+  A special purpose compiler for <code>+</code> and <code>-</code>.
+  If the last word compiled is a literal, then an optimised sequence
+  is planted.  Whether it is <code>+</code> or </code>-</code> is controlled
+  by the dictionary header in %rdx, an opcode table is kept at an
+  offset of opf_h_add_sub_table in the headers of both of these words.
+ how:
+  If the last word is not a literal then opf_add_code is planted inline.
+  If the last word is a literal, then what is planted depends on the
+  size of the literal.  If its absolute value of the literal is > 255
+  then a full add/subtract is required.  If the literal is 1 then
+  a incl/decl can be used.  If it is between 1 and 255 then a short form
+  of add/sub is used.
+
+
+opf_le_code
+ inputs:
+  %rax  = b
+  *%rbp = a
+ outputs:
+  %rax' = 1 if a <= b otherwise 0.
+  %rbp' = %rbp - 4
+ what:
+  Determines if a <= b.
+ how:
+  The quickest way I could think of was to perform <code>b-a</code>, flip
+  the bits and then use the sign bit in the result to indicate whether
+  <code>a<=b</code>.
+  
+
+opf_gt_code
+ inputs:
+  %rax  = b
+  *%rbp = a
+ outputs:
+  %rax' = 1 if a > b otherwise 0.
+  %rbp' = %rbp - 4
+ what:
+  Determines if a > b.
+ how:
+  The quickest way I could think of was to perform <code>b-a</code> and
+  then use the sign bit in the result to indicate whether <code>a>b</code>.
+
+
+opf_and_code XXX
+opf_or_code XXX
+opf_xor_code XXX
+opf_store_code XXX
+opf_fetch_code XXX
+
+
+opf_swap_state_code
+ what:
+  Swaps the contents of opf_defined_vector and opf_undefined_vector
+  with the values in the opf_vector_swap_cache.  This is the action
+  that both <code>{</code> and <code>}</code> perform.
+ how:
+  The floating point hardware is used since this is the most efficient
+  method of swapping two 64-bit values.  This could overflow the hardware
+  floating point stack and lose some data if it is being left around across
+  calls to opf_swap_state_code.  Perhaps should go the whole way and have a
+  stack rather than just swapping back and forth?  It would certainly be
+  more flexible.
+
+
+opf_return_code
+ inputs:
+  -
+ outputs:
+  unspecified
+ what: 
+  A <code>;</code> has been reached and now there is a decision about
+  what do do.  The decision is based on the following table :-
+
+   +-----------+-----------+-------------++----------------------+
+   | one word? |   call?   | inlineable? ||        action        |
+   +-----------+-----------+-------------++----------------------+
+   |    no     |    yes    |      -      ||  change to tail call |
+   +-----------+-----------+-------------++----------------------+
+   |    no     |     no    |      -      ||    plant a ret       |
+   +-----------+-----------+-------------++----------------------+
+   |   yes     |    yes    |      -      ||  alias previous def. |
+   +-----------+-----------+-------------++----------------------+
+   |   yes     |     no    |     yes     ||  make inline word    |
+   +-----------+-----------+-------------++----------------------+
+
+  the following is a key to the headings in the table :-
+
+   one word? 
+     Does the body consist of just one reference to another word?
+     That is, is it of the form :-
+
+      : foo bar ;
+
+   call?
+     Is the last code planted a call instruction?
+
+   inlinable?
+     Is the body of the definition short enough to be inlined when referenced.
+
+   action
+     The action if all the conditions in the row match.
+ how:
+  call?
+   This is determined by checking if the last instruction planted
+   starts with E8, the opcode code for a call.
+  one word?
+   This is determined by comparing the address of the last instruction
+   with the address of the start of the code area.  If they are the same
+   then only one word has been compiled, though it may have been inlined.
+  inlinable?
+   Any word which takes less than opf_inline_size bytes is considered a
+   candidate for inlining.
+  
+opf_return_code_inline
+ inputs:
+  %rbx = length in bytes of body of current word
+  %rcx = address of last entry in the compilation queue.
+  %rdx = address of header of current word.
+  %rsi = address of the first instruction in the current word.
+  %rdi = address of next available space in code space.
+ outputs:
+  %rcx' = %rcx
+  %rbx' = *opf_Qi'
+  %rdx' = %rdx
+  %rsi' = start address of code being aliased
+  %rdi' = address of compilation code for word being aliased.
+  *opf_Qi' = (*opf_Qi - 1) mod opf_Q_size
+  *opf_H' = *opf_H + 1
+ what:
+  The only word in the current word was inlined.  That is the current
+  definition is of the form :-
+
+   : foo { bar } ;
+  or
+   : foo { <number> } ;
+
+  where <code>bar</code> has been inlined into <code>foo</code> or
+  <code>foo</code> is a constant definition.  In the former case there
+  is no need to keep the code section for <code>foo</code> it can be
+  shared with <code>bar</code>.  In the latter case the code section
+  needs to be kept since this is the definition of a constant.  In both
+  cases <code>foo</code> should be marked as an inlinable word.
+ how:
+  The entry is not really flushed since it does no harm to leave it there, 
+  all that happens is that the index is backed up by one.
+
+opf_return_code_alias
+ inputs:
+  %rdx = address of header of current word.
+  %rdi = address of next available space to plant code.
+ outputs:
+  %rcx' = address of code of aliased word
+  %rdi' = %rdi - opf_call_size
+  *opf_C = %rdi'
+ what:
+  The current word is an alias for another word, but not one that is
+  inlinable.  That is, the current word is of the form
+
+    : foo bar ;
+
+  where <code>bar</code> is not an inlined word.  So, instead of having
+  a definition which just calls another definition, the header for the
+  current word is altered so that it points directly at the code for the
+  aliased word and the space that was taken up by the call is reclaimed.
+
+
+opf_def_code
+ inputs:
+  opf_D =
+  opf_H =
+  opf_C =
+  opf_X = 
+ outputs:
+  opf_C' = opf_C
+  opf_D' = opf_H' - opf_h__size
+  opf_H' = opf_H + opf_h__size + /* length of word name */
+  opf_X' = opf_X
+ what:
+  Reads a whitespace delimited word from the current input (opf_I) into
+  opf_H and creates a header for it setting the compiler (opf_h_comp)
+  to whatever opf_X contains and pointing the code (opf_h_code) to the
+  current value of opf_C.
+
+
+opf_u_to_string
+ inputs:
+  %rax = number to convert
+  %rbx = address of one byte past the end where the string should be placed.
+ outputs:
+  %rbx' = address of first character in the string.
+  %rsi' = %rbx - %rbx' i.e. the length of the string.
+  %rdx' = unspecified
+ what:
+  Converts the unsigned integer in %rax into a string.  It is positioned such
+  that the last character in the string is at %rbx-1.  The reason for
+  starting at the end is that it is more efficient to do it that way.
+
+
+opf_type_code
+ inputs:
+  %rax = length of the string to output.
+  *%rbp = address of the start of the string to output.
+ outputs:
+  %rax' = *%rbp
+  %rbx' = unspecified
+  %rcx' = unspecified
+  %rdx' = unspecified
+  %rbp' = %rbp + 4
+ what:
+  Writes out the string whose address is at *%rbp and whose length is in
+  %rax to the standard output.  No indication of success/failure is given.
+
+
+opf_emit_code
+ inputs:
+  %rax = character to output (only %al is taken notice of).
+ outputs:
+  %rax' = *%rbp
+  %rbp' = %rbp + 4
+ what:
+  Write out the character to the standard output.  No indication of 
+  success/failure is given.
+ how:
+  To keep the code safe in the event of pre-emptive threads, rather than
+  use a static buffer of some sort to hold the character, it is pushed
+  onto the return stack and its address is taken.  Earlier versions
+  made use of opf_type_code to output the character, but with the change
+  to not using fixed area to hold the character it was decided that any
+  code space saving was marginal.
+
+
+opf_type_code
+ inputs:
+  %rax = length of string to output
+  *%rbp = address of start of string.
+ outputs:
+ what:
+  Outputs the string to the standard output.
+
+
+opf_dot_code
+  inputs:
+   %rax = number to output
+   opf_B = base to output in
+  outputs:
+   opf_B' = opf_B
+   %rax' = *%rbp'
+   %rbp' = %rbp+4
+  what:
+   Writes %rax as an unsigned integer according to the current base.
+  how:
+   Converts %rax into a string and then writes it out.  To keep the code
+   re-entrant in the face of premptive threads, the space for string
+   is allocated on the return stack.
+
+
+opf_if_code
+ outputs:
+  %rax' = address+1 of byte to patch with destination.
+  *%rbp' = %rax
+  %rbp' = %rbp - 4
+  opf_C' = opf_C + 4
+ what:
+  Alters the runtime execution of word being defined such that any
+  following code is only executed if %rax at that point contains a
+  non-zero value.  If %rax contains zero, then execution continues after
+  the next <code>then</code> that occurs in the code -- there must be
+  a <code>then</code> or the result is <code>undefined</code>.
+
+  Unlike ANS and most traditional Forth implementations, OPF <code>if</code>
+  does not pop the condition being tested.  This makes it very useful in
+  the common case where you just want to test if something is non-zero.
+  Instead of having to write :-
+
+   : foo DUP IF non-zero ELSE DROP zero THEN ; 
+
+  which results in a redundant DUP and DROP, you can write :-
+
+   : foo if { non-zero } ; then { zero } ;
+
+  If the <code>if</code> is preceded by some sort of condition check, e.g.
+  <code><</code>, then you may prefer to use <code>!if</code> which behaves
+  more like a traditional Forth <code>if</code>.
+ how:
+  Plants the following code at opf_C :-
+
+   85 C0     testl %rax, %rax
+   74 XX     jz +XX
+
+  The 8-bit branch is used in preference to the larger ones because it
+  saves space in the common case.  If you need a larger branch offset than
+  is allowed by 8-bits then factor your code!
+
+  The address+1 is returned rather than address simply because doing so
+  takes less instructions.  It is up to opf_if_code and opf_then_code
+  to cooperate in this respect.
+
+
+opf_lif_cond_table
+ what:
+  A table of entries which lists which words are optimised by opf_lif_code.
+  Each entry consists of a code address and an opcode.  The reason for
+  using code addresses rather than header addresses is that the latter
+  would fail in the face of aliases.
+
+
+opf_lif_code
+ outputs:
+  %rax' = address+1 of byte to patch with destination.
+  *%rbp' = %rax
+  %rbp' = %rbp - 4
+  opf_C' = opf_C + 4
+ what:
+  Alters the runtime execution of word being defined such that any
+  following code is only executed if %rax at that point contains a
+  non-zero value.  If %rax contains zero, then execution continues after
+  the next <code>then</code> that occurs in the code -- there must be
+  a <code>then</code> or the result is <code>undefined</code>.
+
+  Like a traditional Forth, <code>!if</code> consumes the condition on
+  the top of the stack.
+
+  The use of <code>!</code> in the name is a reference to the use of
+  <code>!</code> in linear logic to refer to linear variables.  It could
+  be confused with traditional Forth use of a <code>!</code> suffix or
+  prefix to mean some form of storage but I won't make that mistake even
+  if others will :-)
+ how:
+  The default is to plant the following code at opf_C :-
+
+   89 C3     movl  %rax, %rbx
+   8B 45 00  movl  (%rbp), %rax
+   83 C5 04  addl  $opf_cell_size, %rbp
+   85 DB     testl %rbx, %rbx
+   74 XX     jz +XX
+
+  The 8-bit branch is used in preference to the larger ones because it
+  saves space in the common case.  If you need a larger branch offset than
+  is allowed by 8-bits then factor your code!
+
+  The address+1 is returned rather than address simply because doing so
+  takes less instructions.  It is up to opf_if_code and opf_then_code
+  to cooperate in this respect.
+
+  If the previous word that was compiled is listed in
+  smf_lif_cond_table then the slightly longer sequence of the form :- 
+
+   89 C3     movl  %rax, %rbx
+   8B 4D 00  movl  (%rbp), %rcx
+   8B 45 04  movl  opf_cell_size(%rbp), %rax
+   83 C5 08  addl  $(2*opf_cell_size), %rbp
+   39 D9     cmpl  %rbx, %rcx
+   7Y XX     jY +XX
+
+  is planted instead.  Although it is longer, since it is planted over
+  the previous word, it results in a shorter sequence altogether.
+  Y if filled in with the branch instruction as indicated in the
+  appropriate smf_lif_cond_table entry. 
+
+
+opf_then_code
+ inputs:
+  %rax = address+1 of byte to patch 
+  opf_C = address that the patched byte should refer to.
+ outputs:
+  %rax' = *%rbx
+  %rbx' = %rbx + 4
+  opf_C' = opf_C
+ what:
+  XXX
+ how:
+  Calculates the correct offset between opf_C and the patch address in %rax
+  and patches the address.
+
+
+opf_string_code
+ inputs:
+ outputs:
+   see outputs of opf_parse_code
+ what:
+  Reads a <code>"</code> terminated string from the input and leaves its
+  address and length on the parameter stack.
+
+
+opf_parse_code
+ inputs:
+  %rax = char to read until.
+ outputs:
+  %rbx' = opf_H
+  %rax' = /* number of characters read */
+  %rbp' = %rbp - 4
+  *%rbp' = opf_H
+  opf_H' = opf_H + %rax'
+ what:
+  Reads characters from the input and stores them starting at opf_H.
+  Characters are read and stored until a char matching %rax is read --
+  this character is not stored.  If the input runs out before the 
+  terminating character is found then execution is vectored through
+  opf_abort_vector with %rax = opf_error_eoi.
+
+
+opf_tick_code
+ inputs:
+ outputs:
+  %rax = address of word header or 0 if no such word.
+ what:
+  Parses a whitespace delimited word from the input and looks it up in
+  the dictionary.  If the word is in the dictionary then the address
+  of its header is returned.  If the word is not in the dictionary then
+  0 is returned.
+
+
+opf_compile_code
+ inputs:
+  %rax = address of header of word to compile.
+ outputs:
+  %rax' = *%rbp
+  %rbp' = %rbp - 4
+ what:
+  Compiles the word whose header is in %rax.
+ how:
+  The compilation is vectored through the word specific compiler in opf_h_comp
+
+
+opf_trap_n_code
+ inputs:
+  %rax = number of arguments the system call takes
+  *%rbp = system call number
+  *(%rbp+1*4) = first argument 
+  *(%rbp+2*4) = second argument
+  ...
+ outputs:
+  %rbp' = %rbp + %rax*4 + 4
+  %rax = /* value returned by system call */
+ what:
+  Performs the system call whose number is in *%rbx, passing %rax arguments
+  to the system call.  The result of the system call is left in %rax.
+ how:
+  If there are more than three arguments, then the kernel wants the address
+  of the first argument, with all the other arguments allocated in successive
+  locations.  This is an old style kernel call.
+
+  If there are less than four arguments, then the kernel wants the arguments
+  in registers.  %rbx = first, %rcx = second, %rdx = third.  To keep the
+  size of the code down, a combination of a jump table and fall through
+  are used: the number of arguments is used to find the correct address
+  to jump to and the unpack code for argument n falls through to n-1.
+  This relies on the code for unpacking each argument being the same fixed
+  size.  To take advantage of one of the complicated addressing modes, the
+  code has been padded to make it 4 bytes long.  If it was left at 3
+  bytes it would require a shift and add.  Perhaps that would be shorter
+  than the nops?  Should check this out.
+
+
+opf_anon_mmap
+ inputs:
+  %rcx = address of word to store base of allocated memory at.
+  *(%rcx+4) = number of bytes to allocate
+ outputs:
+  %rax' = address of start of allocated region.
+  *%rcx = %rax'
+ what:
+  Allocates *(%rcx+4) bytes of memory (this will be rounded up to the
+  nearest page) and returns the address of the allocated block in %rax
+  and also stores it in *%rcx.  If the memory cannot be allocated then
+  execution is vectored through opf_abort_vector with %rax containing
+  the error code.
+
+  The reason for the odd input convention is that it allows to values to
+  be passed with one register and so saves on code space.  The approach
+  currently costs nothing because it is easy to arrange that the two
+  locations lie next to each other.
+ how:
+  As the name suggests, uses mmap to allocate the memory.
+
+  Since the Linux kernel cannot currently accept more than 4 arguments
+  via registers, it is necessary to create an argument block and store
+  the arguments in it before passing the address of the argument block
+  in %rbx.  Since the routine does not need to be re-entrant the argument
+  block could be carved out of some available space once and for all and
+  reused.  The only reason that is not done and the return stack is used
+  is that the latter is simpler and takes less code (pushl can be used
+  to initialise on the stack and this has a short code sequence).
+
+  The mapping takes advantage of support for anonymous mappings in Linux.
+  The alternative would be to open /dev/zero and map that but it would take
+  more code :-<
+
+  opf_mmap_map_private is passed along with opf_mmap_map_anonymous because
+  without it mmap will return EINVAL (discovered by looking at the
+  source in /usr/src/linux/mm/mmap.c#do_mmap).
+
+  Since opf_mmap_map_anonymous is being used, the file descriptor argument
+  is not read by the kernel, so any old junk can be passed.
+
+opf_sub_opcodes
+ what:
+  A table of opcodes which are used to parameterise opf_compile_add_sub
+  so that it will plant the correct <code>sub</code> instruction.
+
+opf_add_opcodes
+ what:
+  A table of opcodes which are used to parameterise opf_compile_add_sub
+  so that it will plant the correct <code>add</code> instruction.
